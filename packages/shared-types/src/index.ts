@@ -7,4 +7,5 @@ export * from './catchup.js';
 export * from './workspace.js';
 export * from './support.js';
 export * from './library.js';
+export * from './quantum.js';
 
