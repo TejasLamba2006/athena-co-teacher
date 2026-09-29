@@ -37,6 +37,7 @@ export type GateName =
   | 's'
   | 'sdg'
   | 't'
+  | 'tdg'
   | 'rx'
   | 'ry'
   | 'rz'
@@ -158,6 +159,9 @@ function matrix1(name: GateName, angle: number): MatrixC2 {
     case 't':
       // diag(1, e^(i*pi/4)) = diag(1, (1+i)/sqrt2)
       return [ONE, ZERO, ZERO, { re: INV_SQRT2, im: INV_SQRT2 }];
+    case 'tdg':
+      // diag(1, e^(-i*pi/4)). T's inverse, so T then Tdg is the identity.
+      return [ONE, ZERO, ZERO, { re: INV_SQRT2, im: -INV_SQRT2 }];
     case 'rx': {
       // [[cos, -i sin], [-i sin, cos]] with c = cos(t/2), s = sin(t/2)
       const c = Math.cos(angle / 2);

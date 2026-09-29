@@ -24,6 +24,7 @@ import {
   simulate,
   simulateSteps,
   type Circuit,
+  type GateName,
 } from './../src/quantum/simulator.ts';
 
 let pass = 0;
@@ -119,6 +120,40 @@ t('S and T produce the right global phase on |1>', () => {
     Math.abs(t.amplitudes[1].re - S2) < 1e-9 && Math.abs(t.amplitudes[1].im - S2) < 1e-9,
     'T|1> = e^(i*pi/4)|1>',
   );
+});
+
+t('Tdg is T inverted: T then Tdg is the identity', () => {
+  const r = simulate({
+    qubits: 1,
+    gates: [
+      { gate: 'x', qubit: 0 },
+      { gate: 't', qubit: 0 },
+      { gate: 'tdg', qubit: 0 },
+    ],
+  });
+  assert.ok(
+    Math.abs(r.amplitudes[1].re - 1) < 1e-9 && Math.abs(r.amplitudes[1].im) < 1e-9,
+    `expected amplitude back to +1, got ${JSON.stringify(r.amplitudes[1])}`,
+  );
+});
+
+t('every gate canSimulate accepts is a gate simulate can actually run', () => {
+  // The bug this locks down: `tdg` was accepted by canSimulate (and by the
+  // route and control-payload validators built on the same name list) while
+  // `matrix1` had no case for it — so it passed every check and then threw
+  // from inside simulate(). gradeSubmission calls simulate directly, so a
+  // student submitting that gate crashed their own request.
+  const names: GateName[] = [
+    'h', 'x', 'y', 'z', 's', 'sdg', 't', 'tdg', 'rx', 'ry', 'rz', 'cnot', 'cz', 'swap',
+  ];
+  for (const gate of names) {
+    const circuit: Circuit =
+      gate === 'cnot' || gate === 'cz' || gate === 'swap'
+        ? { qubits: 2, gates: [{ gate, qubit: 0, target: 1 }] }
+        : { qubits: 2, gates: [{ gate, qubit: 0, angle: 0.5 }] };
+    assert.equal(canSimulate(circuit), true, `canSimulate rejected ${gate}`);
+    assert.doesNotThrow(() => simulate(circuit), `simulate threw on ${gate}`);
+  }
 });
 
 t('S applied twice is Z (S is a quarter turn)', () => {
