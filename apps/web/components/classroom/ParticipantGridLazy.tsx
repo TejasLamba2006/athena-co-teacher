@@ -1,8 +1,8 @@
 /**
  * Browser-only wrapper around ParticipantGrid.
  *
- * ParticipantGrid pulls in useAthenaAvatar -> lib/athena-avatar.ts ->
- * TalkingHead -> three.js, which touches browser globals at
+ * ParticipantGrid pulls in AthenaTalkingHead -> TalkingHead -> three.js,
+ * which touches browser globals at
  * module-evaluation time. `'use client'` does not prevent Next from
  * server-rendering a client component's module tree, so importing
  * ParticipantGrid statically from a page evaluates three.js on the server

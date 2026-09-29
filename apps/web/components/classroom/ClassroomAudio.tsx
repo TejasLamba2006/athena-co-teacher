@@ -13,6 +13,9 @@
  *
  * The StrictMode guards below are taken from the official quickstart. Removing
  * them causes a double RTC join and a duplicated microphone track.
+ *
+ * Also exposes Athena's own live remote audio track (via `onAthenaAudioTrack`)
+ * so the TalkingHead 3D avatar can analyse it for amplitude-driven lip-sync.
  */
 
 'use client';
@@ -86,7 +89,6 @@ export interface ClassroomAudioProps {
    * avatar's jaw tap — ClassroomAudio is the only component that
    * sees Agora's remote tracks, and the grid is its sibling, not its child.
    */
-  onAgentAudioTrackChange?: (track: MediaStreamTrack | null) => void;
   /**
    * Fires on the relay client when this tab is hidden or shown again.
    *
@@ -94,6 +96,14 @@ export interface ClassroomAudioProps {
    * stops the room's transcript.
    */
   onRelayHiddenChange?: (hidden: boolean) => void;
+  /**
+   * Fires with Athena's own live remote audio track whenever it's available
+   * (or `undefined` if she's not currently publishing audio). Consumed by
+   * AthenaTalkingHead to drive amplitude-based lip-sync — Agora's resold TTS
+   * exposes no phoneme/viseme timing, so this raw track is the only signal
+   * available for mouth movement.
+   */
+  onAthenaAudioTrack?: (track: any) => void;
 }
 
 /** A human-readable reason for `useLocalMicrophoneTrack`'s error, if any. */
@@ -241,7 +251,7 @@ export function ClassroomAudio({
   onToolkitError,
   onMicError,
   onRelayHiddenChange,
-  onAgentAudioTrackChange,
+  onAthenaAudioTrack,
 }: ClassroomAudioProps) {
   const client = useRTCClient();
   const remoteUsers = useRemoteUsers();
@@ -250,6 +260,16 @@ export function ClassroomAudio({
   // box) and, hidden, its playback became unreliable. `useRemoteAudioTracks`
   // does the subscription and `<RemoteAudioTrack>` renders nothing.
   const { audioTracks } = useRemoteAudioTracks(remoteUsers);
+
+  // Athena's own track, singled out for the TalkingHead avatar's amplitude
+  // analyser. Reported up via onAthenaAudioTrack whenever it changes.
+  const athenaAudioTrack = audioTracks.find(
+    (track) => String(track.getUserId()) === agentUid,
+  );
+
+  useEffect(() => {
+    onAthenaAudioTrack?.(athenaAudioTrack);
+  }, [athenaAudioTrack, onAthenaAudioTrack]);
 
   // StrictMode guard from the quickstart: React's simulated unmount fires
   // cleanup synchronously before any setTimeout callback, so only the real
@@ -275,21 +295,6 @@ export function ClassroomAudio({
   const { localMicrophoneTrack, error: micTrackError } =
     useLocalMicrophoneTrack(isReady);
   usePublish(localMicrophoneTrack ? [localMicrophoneTrack] : []);
-
-  // Expose the agent's underlying MediaStreamTrack for the TalkingHead
-  // avatar's audio tap. `useRemoteAudioTracks` populates `user.audioTrack`
-  // asynchronously and only returns a fresh `audioTracks` array when that
-  // lands — `remoteUsers` alone never changes identity at subscribe time, so
-  // both are deps. Identity guard keeps the callback from firing per tick.
-  const lastAgentTrackRef = useRef<MediaStreamTrack | null>(null);
-  useEffect(() => {
-    const agentUser = remoteUsers.find((user) => String(user.uid) === agentUid);
-    const raw = agentUser?.audioTrack?.getMediaStreamTrack() ?? null;
-    if (raw !== lastAgentTrackRef.current) {
-      lastAgentTrackRef.current = raw;
-      onAgentAudioTrackChange?.(raw);
-    }
-  }, [remoteUsers, audioTracks, agentUid, onAgentAudioTrackChange]);
 
   // Mute via setEnabled only — unpublishing here would fight usePublish.
   useEffect(() => {

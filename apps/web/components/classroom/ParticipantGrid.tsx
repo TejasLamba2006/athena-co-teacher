@@ -4,7 +4,7 @@ import { useMemo } from 'react';
 import type { PublicParticipant } from '@echosphere/shared-types';
 import { seatColorVar } from '@/lib/seatColor';
 import { initialsOf } from '@/components/classroom/panels';
-import { useAthenaAvatar } from '@/hooks/useAthenaAvatar';
+import { AthenaTalkingHead } from './AthenaTalkingHeadLazy';
 
 interface Tile {
   key: string;
@@ -78,6 +78,7 @@ function PowerIcon() {
 }
 
 export function ParticipantGrid({
+  sessionId,
   participants,
   agentPresent,
   agentUid,
@@ -89,8 +90,10 @@ export function ParticipantGrid({
   onToggleAgentMute,
   agentBusy = false,
   onToggleAgentPresence,
-  agentAudioTrack = null,
+  athenaAudioTrack,
 }: {
+  /** Kept for API compatibility with the previous Anam integration; unused now. */
+  sessionId: string;
   participants: PublicParticipant[];
   agentPresent: boolean;
   agentUid?: string;
@@ -101,11 +104,6 @@ export function ParticipantGrid({
   raisedHands?: string[];
   /** Whether Athena is currently muted. Only meaningful when she's present. */
   agentMuted?: boolean;
-  /**
-   * Athena's live Agora audio track, bridged from ClassroomAudio — the
-   * TalkingHead avatar taps it to drive her jaw. See useAthenaAvatar.
-   */
-  agentAudioTrack?: MediaStreamTrack | null;
   /**
    * Toggle Athena's mute state. Only rendered (as an icon on her tile) when
    * this is provided — student view omits it, since only the teacher can
@@ -122,6 +120,13 @@ export function ParticipantGrid({
    * brings her in too. Student view never passes this.
    */
   onToggleAgentPresence?: () => void;
+  /**
+   * Athena's live remote audio track (from ClassroomAudio's
+   * onAthenaAudioTrack). Passed straight through to AthenaTalkingHead for
+   * amplitude-driven lip-sync — Agora's resold TTS carries no viseme timing,
+   * so this raw track is the only signal available for mouth movement.
+   */
+  athenaAudioTrack?: any;
 }) {
   const teacher = participants.find((p) => p.role === 'teacher');
   const students = participants.filter((p) => p.role === 'student');
@@ -180,16 +185,6 @@ export function ParticipantGrid({
 
   const rows = Math.max(1, Math.ceil(tiles.length / columns));
 
-  // Athena's local TalkingHead avatar. Voice stays entirely on Agora ConvoAI
-  // (see ClassroomAudio.tsx) — the avatar taps her actual remote audio track
-  // and drives its jaw from it, so the mouth matches the words. See
-  // hooks/useAthenaAvatar.ts / lib/athena-avatar.ts.
-  const { status: avatarStatus, containerRef } = useAthenaAvatar(
-    agentPresent,
-    tiles.find((t) => t.isAgent)?.speaking ?? false,
-    agentAudioTrack,
-  );
-
   return (
     <div
       className="grid flex-1 gap-3"
@@ -199,13 +194,11 @@ export function ParticipantGrid({
       }}
     >
       {tiles.map((tile) => {
-        // Athena, once her avatar is actually live, gets a completely
-        // different tile treatment: full-bleed 3D head filling the whole
-        // card (like a real video-call tile), with her name as a small
-        // overlay label — not the small circle-avatar + name-below layout
-        // every other tile uses. Only this one case changes the outer
-        // card's padding/layout; everything else below is untouched.
-        const isLiveVideoTile = tile.isAgent && avatarStatus === 'connected';
+        // Athena, once she's present, gets a full-bleed 3D-avatar tile —
+        // same "video-call tile" treatment the Anam integration used, just
+        // filled with TalkingHead's Three.js canvas instead of a video
+        // element. Every other tile keeps the small circle-avatar layout.
+        const isLiveVideoTile = tile.isAgent && Boolean(tile.agentPresent);
 
         return (
           <div
@@ -243,35 +236,38 @@ export function ParticipantGrid({
               </span>
             )}
 
-            {/* TalkingHead renders its canvas into this one, stable element
-                — it stays mounted across every status change (the session
-                is only ever attached once), and just fades out underneath
-                the idle orb until the avatar is actually live. */}
-            {tile.isAgent && (
-              <div
-                ref={containerRef}
-                className={`absolute inset-0 overflow-hidden ${
-                  isLiveVideoTile ? '' : 'pointer-events-none opacity-0'
-                }`}
-              />
-            )}
-
-            {tile.isAgent && isLiveVideoTile && (
-              // Full-bleed: the 3D head fills the entire card. The name
-              // label moves to an overlay pill at the bottom, video-call
-              // style.
-              <div
-                className="absolute bottom-3 left-3 z-10 rounded-full px-3 py-1 text-xs font-medium backdrop-blur-sm"
-                style={{
-                  background: 'color-mix(in srgb, var(--eco-ink) 55%, transparent)',
-                  color: 'var(--eco-cream)',
-                }}
-              >
-                Athena · AI teacher
-              </div>
-            )}
-
-            {!tile.isAgent && (
+            {tile.isAgent ? (
+              isLiveVideoTile ? (
+                // Full-bleed: the 3D avatar fills the entire card. The name
+                // label sits as an overlay pill at the bottom, matching the
+                // old Anam video-call-style layout.
+                <>
+                  <div className="absolute inset-0 h-full w-full">
+                    <AthenaTalkingHead
+                      audioTrack={athenaAudioTrack}
+                      speaking={tile.speaking}
+                    />
+                  </div>
+                  <div
+                    className="absolute bottom-3 left-3 z-10 rounded-full px-3 py-1 text-xs font-medium backdrop-blur-sm"
+                    style={{
+                      background: 'color-mix(in srgb, var(--eco-ink) 55%, transparent)',
+                      color: 'var(--eco-cream)',
+                    }}
+                  >
+                    Athena · AI teacher
+                  </div>
+                </>
+              ) : (
+                // Fallback: Athena not yet brought into the room.
+                <span
+                  className="relative flex h-16 w-16 items-center justify-center rounded-full text-lg font-semibold"
+                  style={{ background: 'var(--eco-ink-sunken)', color: 'var(--eco-athena)' }}
+                >
+                  A
+                </span>
+              )
+            ) : (
               <span
                 className={`relative flex h-16 w-16 items-center justify-center rounded-full ${
                   tile.speaking ? 'eco-avatar-speaking' : ''
@@ -281,32 +277,6 @@ export function ParticipantGrid({
                 <span className="text-lg font-semibold" style={{ color: 'var(--eco-ink)' }}>
                   {initialsOf(tile.name)}
                 </span>
-              </span>
-            )}
-
-            {tile.isAgent && !isLiveVideoTile && (
-              // Fallback while the avatar loads, or when it can't (no
-              // WebGL, asset missing): a calm 'A' orb — glowing during
-              // 'connecting'. The live 3D head is what replaces it.
-              <span
-                className={`relative flex h-16 w-16 items-center justify-center rounded-full text-lg font-semibold ${
-                  tile.agentPresent
-                    ? avatarStatus === 'connecting'
-                      ? 'eco-avatar-speaking'
-                      : 'eco-orb-idle'
-                    : ''
-                }`}
-                style={{
-                  background: tile.agentPresent
-                    ? 'radial-gradient(circle at 50% 40%, color-mix(in srgb, var(--eco-athena) 55%, transparent), transparent 70%), var(--eco-ink-sunken)'
-                    : 'var(--eco-ink-sunken)',
-                  color: 'var(--eco-athena)',
-                  boxShadow: tile.agentPresent
-                    ? '0 0 14px 1px color-mix(in srgb, var(--eco-athena) 35%, transparent)'
-                    : 'none',
-                }}
-              >
-                A
               </span>
             )}
 

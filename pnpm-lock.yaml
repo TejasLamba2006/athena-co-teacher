@@ -89,7 +89,7 @@ importers:
         version: 0.18.1(@types/react-dom@19.2.5(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       '@google/model-viewer':
         specifier: ^4.3.1
-        version: 4.3.1(three@0.183.2)
+        version: 4.3.1(three@0.186.0)
       '@lottiefiles/dotlottie-react':
         specifier: ^0.19.16
         version: 0.19.16(react@19.2.8)
@@ -165,6 +165,9 @@ importers:
       tailwindcss-animate:
         specifier: ^1.0.7
         version: 1.0.7(tailwindcss@3.4.19(tsx@4.23.12))
+      three:
+        specifier: ^0.186.0
+        version: 0.186.0
     devDependencies:
       '@types/node':
         specifier: ^22.10.6
@@ -4733,8 +4736,8 @@ packages:
   three@0.180.0:
     resolution: {integrity: sha512-o+qycAMZrh+TsE01GqWUxUIKR1AL0S8pq7zDkYOQw8GqfX8b8VoCKYUoHbhiX5j+7hr8XsuHDVU6+gkQJQKg9w==}
 
-  three@0.183.2:
-    resolution: {integrity: sha512-di3BsL2FEQ1PA7Hcvn4fyJOlxRRgFYBpMTcyOgkwJIaDOdJMebEFPA+t98EvjuljDx4hNulAGwF6KIjtwI5jgQ==}
+  three@0.186.0:
+    resolution: {integrity: sha512-cr/fIM2ddMSVbYVgkfD4jLJv7Fh/8ZTjvo+7gQeSVGUZHxpx9FDwoL5iC7hUz/LiRA8wMbqfnb90xKfm1/HHkQ==}
 
   tinyexec@1.3.1:
     resolution: {integrity: sha512-GCvB3aoys96IuDFBMcTB46JOR6mdMtAToqwiW8JlWhsoh1mhHi/xn9ss/Dg7N555GiJyEt2qzoG/NHCwM6h1EA==}
@@ -5589,11 +5592,11 @@ snapshots:
 
   '@floating-ui/utils@0.2.12': {}
 
-  '@google/model-viewer@4.3.1(three@0.183.2)':
+  '@google/model-viewer@4.3.1(three@0.186.0)':
     dependencies:
-      '@monogrid/gainmap-js': 3.4.0(three@0.183.2)
+      '@monogrid/gainmap-js': 3.4.0(three@0.186.0)
       lit: 3.3.3
-      three: 0.183.2
+      three: 0.186.0
 
   '@hono/node-server@2.1.1(hono@4.13.7)':
     dependencies:
@@ -5802,10 +5805,10 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@monogrid/gainmap-js@3.4.0(three@0.183.2)':
+  '@monogrid/gainmap-js@3.4.0(three@0.186.0)':
     dependencies:
       promise-worker-transferable: 1.0.4
-      three: 0.183.2
+      three: 0.186.0
 
   '@napi-rs/canvas-android-arm64@1.0.9':
     optional: true
@@ -9638,7 +9641,7 @@ snapshots:
 
   three@0.180.0: {}
 
-  three@0.183.2: {}
+  three@0.186.0: {}
 
   tinyexec@1.3.1: {}
 

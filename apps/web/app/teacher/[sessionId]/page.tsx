@@ -140,8 +140,6 @@ export default function TeacherDashboardPage() {
   const [identity, setIdentity] = useState<StoredIdentity | null>(null);
   const [micEnabled, setMicEnabled] = useState(true);
   const [speakingUid, setSpeakingUid] = useState<string | null>(null);
-  /** Athena's Agora audio track, bridged ClassroomAudio -> ParticipantGrid. */
-  const [agentAudioTrack, setAgentAudioTrack] = useState<MediaStreamTrack | null>(null);
   const [transcriptionLive, setTranscriptionLive] = useState(false);
   const [transcriptionError, setTranscriptionError] = useState<string | null>(null);
   const [micError, setMicError] = useState<string | null>(null);
@@ -203,6 +201,14 @@ export default function TeacherDashboardPage() {
    * header buttons.
    */
   const [agentMuted, setAgentMuted] = useState(false);
+  /**
+   * Athena's live remote audio track, reported up by ClassroomAudio via
+   * onAthenaAudioTrack. Passed down into ParticipantGrid -> AthenaTalkingHead
+   * for amplitude-driven lip-sync (see AthenaTalkingHead.tsx - Agora's
+   * resold TTS carries no viseme timing, so this raw track is the only
+   * signal available for mouth movement).
+   */
+  const [athenaAudioTrack, setAthenaAudioTrack] = useState<any>(undefined);
   /** Which tool-bag panel (if any) is open: quiz and gaps no longer live in the Menu drawer. */
   const [activeToolPanel, setActiveToolPanel] = useState<'quiz' | 'gaps' | null>(null);
 
@@ -946,7 +952,7 @@ export default function TeacherDashboardPage() {
                 onMicError={setMicError}
                 onSpeakingChange={setSpeakingUid}
                 onRelayHiddenChange={setRelayHidden}
-                onAgentAudioTrackChange={setAgentAudioTrack}
+                onAthenaAudioTrack={setAthenaAudioTrack}
               />
 
               {/* Stage + optional pinned transcript sidebar, side by side. */}
@@ -996,6 +1002,7 @@ export default function TeacherDashboardPage() {
                     />
                   ) : (
                     <ParticipantGrid
+                      sessionId={sessionId}
                       participants={view.participants}
                       agentPresent={Boolean(view.room?.agentId)}
                       agentUid={identity.agentUid}
@@ -1003,11 +1010,11 @@ export default function TeacherDashboardPage() {
                       selfUid={identity.uid}
                       selfMicEnabled={micEnabled}
                       raisedHands={view.raisedHands}
-                      agentAudioTrack={agentAudioTrack}
                       agentMuted={agentMuted}
                       onToggleAgentMute={toggleAgentMute}
                       agentBusy={busy}
                       onToggleAgentPresence={toggleAgentPresence}
+                      athenaAudioTrack={athenaAudioTrack}
                     />
                   )}
                 </div>

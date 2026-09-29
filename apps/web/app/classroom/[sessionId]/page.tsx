@@ -67,7 +67,7 @@ export default function ClassroomPage() {
   const [micEnabled, setMicEnabled] = useState(true);
   const [speakingUid, setSpeakingUid] = useState<string | null>(null);
   /** Athena's Agora audio track, bridged ClassroomAudio -> ParticipantGrid. */
-  const [agentAudioTrack, setAgentAudioTrack] = useState<MediaStreamTrack | null>(null);
+  const [athenaAudioTrack, setAthenaAudioTrack] = useState<any>(undefined);
   const [transcriptionLive, setTranscriptionLive] = useState(false);
   const [transcriptionError, setTranscriptionError] = useState<string | null>(null);
   const [micError, setMicError] = useState<string | null>(null);
@@ -475,7 +475,7 @@ export default function ClassroomPage() {
               onToolkitError={setTranscriptionError}
               onMicError={setMicError}
               onSpeakingChange={setSpeakingUid}
-              onAgentAudioTrackChange={setAgentAudioTrack}
+              onAthenaAudioTrack={setAthenaAudioTrack}
             />
 
             {/* Stage + optional pinned transcript sidebar, side by side. */}
@@ -518,6 +518,7 @@ export default function ClassroomPage() {
                   <Model3DStage modelId={view.activeModel.modelId} />
                 ) : (
                   <ParticipantGrid
+                    sessionId={sessionId}
                     participants={view.participants}
                     agentPresent={Boolean(view.room?.agentId)}
                     agentUid={identity.agentUid}
@@ -525,7 +526,7 @@ export default function ClassroomPage() {
                     selfUid={identity.uid}
                     selfMicEnabled={micEnabled}
                     raisedHands={view.raisedHands}
-                    agentAudioTrack={agentAudioTrack}
+                    athenaAudioTrack={athenaAudioTrack}
                   />
                 )}
               </div>
