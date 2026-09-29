@@ -88,6 +88,13 @@ pids/
 .node_repl_history
 *.tgz
 
+# ─── Agent tooling state ─────────────────────────────────────────────────────
+#
+# Session transcripts, replay logs and checkpoints written by local editor
+# tooling. Machine-specific (they embed absolute paths) and regenerated on
+# demand, so they are noise in a diff and in the history.
+.omc/
+
 # ─── Editors and OS ──────────────────────────────────────────────────────────
 .DS_Store
 Thumbs.db
