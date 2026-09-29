@@ -1,282 +1,378 @@
 # Athena EchoSphere
 
-**An AI co-teacher that joins the classroom, teaches alongside the teacher, and always answers to them.**
+**An AI co-teacher that joins a live classroom by voice — and can now teach quantum computing with a circuit simulator she drives herself.**
 
-Athena isn't a chatbot bolted onto a video call. She's a real-time, voice-driven AI co-teacher who joins a live classroom session, listens, speaks, draws on a shared whiteboard, checks comprehension, tracks who's falling behind, and defers completely to the teacher's authority at every moment. Built end-to-end on Agora's real-time infrastructure.
+> **SIH 2026 · PS 26140** — *AI-Based Interactive Quantum Algorithm Learning Platform* (Egreen Quanta, Smart Education)
+
+Quantum computing is hard to teach for one specific reason: nothing is visible. A student can read that a Hadamard gate "creates superposition" and that a CNOT "entangles two qubits," and still have no idea what either sentence means, because there is nothing to look at and nothing to get wrong. Worse, the single most common misconception — that gate order is a detail — is invisible on paper. `H` then `CNOT` entangles two qubits. `CNOT` then `H` does not. The circuits look nearly identical.
+
+Athena EchoSphere makes that difference visible, audible, and gradeable. A teacher opens a live classroom. Students join by a 4-digit code. An AI co-teacher joins the same voice channel, explains a circuit out loud, **puts that circuit on everyone's screen as she describes it**, watches what students build in response, and tells them exactly what went wrong — not "incorrect," but *"the CNOT runs before the Hadamard, so it has nothing to entangle."*
 
 ---
 
 ## Table of Contents
 
-- [Core Concept](#core-concept)
-- [Features](#features)
-  - [Live Voice Co-Teaching](#1-live-voice-co-teaching)
-  - [Turn-Taking & Restraint Model](#2-turn-taking--restraint-model)
-  - [Shared Whiteboard](#3-shared-whiteboard)
-  - [Live Quizzes & Gap Detection](#4-live-quizzes--gap-detection)
-  - [Nobody Left Behind](#5-nobody-left-behind)
-  - [Teacher Controls](#6-teacher-controls)
-  - [Athena AI Assistant (Teacher Copilot)](#7-athena-ai-assistant-teacher-copilot)
-  - [Post-Class Report](#8-post-class-report)
-  - [Multilingual Support](#9-multilingual-support)
-  - [Screen Sharing](#10-screen-sharing)
-  - [Avatar & Visual Presence](#11-avatar--visual-presence)
-- [Tech Stack](#tech-stack)
+- [The problem](#the-problem)
+- [What it does](#what-it-does)
+- [See it running](#see-it-running)
+  - [1. The classroom](#1-the-classroom)
+  - [2. The Quantum Lab](#2-the-quantum-lab)
+  - [3. Guided walkthroughs](#3-guided-walkthroughs)
+  - [4. Grading by physics, not by answer key](#4-grading-by-physics-not-by-answer-key)
+- [The two-way loop](#the-two-way-loop-the-core-of-ps-26140)
+- [How the simulator works](#how-the-simulator-works)
+- [Why the narration is a constant](#why-the-narration-is-a-constant)
 - [Architecture](#architecture)
-- [Getting Started](#getting-started)
-- [Environment Variables](#environment-variables)
-- [Project Structure](#project-structure)
+- [The classroom platform underneath](#the-classroom-platform-underneath)
+- [Tech stack](#tech-stack)
+- [Testing](#testing)
+- [Getting started](#getting-started)
+- [Environment variables](#environment-variables)
+- [Project structure](#project-structure)
+- [Known limitations](#known-limitations)
 
 ---
 
-## Core Concept
+## The problem
 
-A teacher creates a session, students join with a share code, and the teacher can bring Athena into the room at any point. From there, Athena behaves like a real co-teacher:
+PS 26140 asks for an interactive platform that teaches quantum algorithms. Breaking that into what a student actually needs:
 
-- She **listens** to everything but only speaks when addressed, invited, or when she detects something worth flagging.
-- She **explains** concepts live, grounded in whatever lesson material the teacher has uploaded.
-- She **draws** what she explains on a shared whiteboard, visible to the whole class.
-- She **checks understanding** with live quizzes and flags class-wide misconceptions as they happen, not after the fact.
-- She **never overrides the teacher** — she can be muted, interrupted, or removed from the room instantly, at any time.
-
----
-
-## Features
-
-### 1. Live Voice Co-Teaching
-
-Athena joins the classroom's real-time audio channel as a live participant. She speaks with natural turn-taking, can be addressed by name ("Athena, can you explain...") or invoked directly by the teacher, and responds with grounded, generated explanations — not canned scripts.
-
-- Real-time speech recognition, language model reasoning, and text-to-speech all running through a single pipeline.
-- Lesson material the teacher uploads gets chunked and injected into her system prompt, so her answers use the room's own terminology instead of generic textbook language.
-- Adjustable verbosity (terse / normal / detailed) so her answers match the pace of the class.
-
-### 2. Turn-Taking & Restraint Model
-
-The hardest part of an AI co-teacher isn't what it says — it's knowing when to stay silent. Athena has a dedicated **floor state machine**, separate from raw voice-activity detection, that governs exactly when she's allowed to speak:
-
-- She waits for a wake phrase or explicit teacher invocation before answering — she doesn't jump in on every sentence.
-- A teacher's barge-in is enforced explicitly and instantly: if the teacher starts talking, Athena's current turn is cut off, no exceptions.
-- A **restraint meter** visualizes her decisions in real time — `listening`, `held-back`, `speaking` — so the teacher can see not just when she spoke, but when she chose not to.
-- Doubts she hears but doesn't answer out loud aren't lost — they're logged as **held-back doubts** and surfaced in the shared workspace instead.
-- Turn detection is tuned specifically for a multi-person classroom rather than a 1:1 call — silence thresholds are widened so a teacher pausing mid-explanation isn't mistaken for the end of a turn.
-
-### 3. Shared Whiteboard
-
-A live, collaborative whiteboard (built on Excalidraw) that every participant sees in real time — presented the same way a screen share would be.
-
-- The teacher can annotate it directly.
-- Athena can write to it herself, when annotation mode is enabled — turning a spoken explanation into an actual diagram, live, in front of the class.
-- Board state syncs instantly across every connected participant.
-
-### 4. Live Quizzes & Gap Detection
-
-Athena doesn't wait until the end of a unit to check understanding.
-
-- She can issue a timed, multiple-choice pop quiz — either on teacher request or automatically, in a set of several questions on a topic.
-- Every answer is scored in real time, with results visible to both the student and the teacher.
-- If enough students miss the same concept, it's flagged as a **class-wide learning gap**, and the teacher can launch a targeted quiz on just that topic with one click.
-- A post-class report ranks each student's concept mastery per topic (mastered / developing / struggling).
-
-### 5. Nobody Left Behind
-
-A cluster of features specifically aimed at the students who don't have the loudest voice in the room, or who weren't in the room at all:
-
-- **Shared workspace / sticky notes** — a live, Miro-style board where student questions, doubts Athena deliberately held back from answering aloud, teacher insights, and key takeaways get pinned in real time, categorized and votable.
-- **Targeted reading** — Athena can recommend supplementary reading for a struggling student, which the teacher must explicitly approve before it ever reaches them.
-- **1:1 catch-up booking** — students can book real one-on-one time with the teacher (and Athena) directly from their own view — picking an available date/time slot, a focus topic, and a preferred language.
-- **Absent-student dispatcher** — for students who missed class entirely, Athena auto-generates a full catch-up packet: an AI-written executive summary of the lesson, key takeaways, flagged misconceptions, and a diagnostic quiz — all built from the actual session transcript and gap data. It can be dispatched via a pre-filled WhatsApp message or delivered as a real email through **Resend**, automatically, without the teacher writing anything by hand.
-
-### 6. Teacher Controls
-
-The teacher retains full, instant authority over Athena at every point in the session:
-
-| Control | Effect |
+| Need | Why the usual approach fails |
 |---|---|
-| **Bring Athena in** | Starts her live agent session and adds her to the room |
-| **Mute Athena** | Silences her immediately, mid-sentence if needed |
-| **Unmute Athena** | Restores her ability to speak |
-| **Send Athena out** | Removes her from the session entirely |
-| **Cut off current turn** | Ends whatever she's currently saying |
-| **Force speak** | Makes her address a specific topic or student on demand |
-| **Disable / enable topic** | Blocks her from discussing a specific subject (e.g. "next week's exam") |
-| **Set student invocation** | Controls whether students can address her directly, or only the teacher can |
-| **Per-student proficiency** | Tags each student's level so Athena can calibrate explanations accordingly |
-
-None of her actions are unsupervised or irreversible — every override is one click away.
-
-### 7. Athena AI Assistant (Teacher Copilot)
-
-A second, private instance of Athena — visible only to the teacher, separate from the voice agent students hear:
-
-- Suggests check-in questions to gauge the room.
-- Generates real-world analogies on the fly.
-- Summarizes how the class is actually doing, mid-lesson.
-- Drafts board challenge problems in seconds.
-
-This runs as a quiet sidebar chat, so the teacher can consult it without ever interrupting the live lesson happening in front of the class.
-
-### 8. Post-Class Report
-
-When a session ends, everything is compiled into a structured summary rather than left as a raw transcript:
-
-- Key concept grasp percentage across the class.
-- Total questions asked to Athena.
-- Topics covered.
-- Identified learning gaps and common misconceptions, with which students were affected.
-- Per-student breakdown: proficiency level, questions asked, quiz performance, and a written note.
-- Concept mastery rankings per student, per topic.
-- Athena's own narrative read of how the session went.
-
-### 9. Multilingual Support
-
-Real-time translation is available for transcript content, with per-participant language preference — useful for multilingual classrooms where not every student's first language matches the lesson's.
-
-### 10. Screen Sharing
-
-Any permitted participant can share their screen to the room. The teacher grants or revokes screen-share permission per student, and an active share automatically takes over the main stage view for everyone.
-
-### 11. Avatar & Visual Presence
-
-Athena isn't just a voice — she has a visual presence in her tile:
-
-- A one-time animated entrance plays the moment she's brought into the room.
-- She settles into a looping idle animation for the rest of the session.
-- Speaking state is visually indicated (a glow/pulse effect) so it's clear when she's actively talking versus idle.
+| **See a circuit's effect** | Textbook state vectors are 8 complex numbers. A bar chart is a probability. |
+| **Discover that order matters** | Being *told* "order matters" teaches nothing. Dragging two gates and watching entanglement vanish does. |
+| **Step through a real algorithm** | Grover's diffusion operator is 9 gates. Shown all at once, it's noise. |
+| **Get feedback that names the mistake** | "Incorrect" tells a student nothing. "Your CNOT is before your H" tells them everything. |
+| **Ask a question mid-lesson** | A static web app can't answer. A voice AI in the room can. |
 
 ---
 
-## Tech Stack
+## What it does
 
-| Layer | Technology |
-|---|---|
-| **Real-time voice & video** | [Agora](https://www.agora.io/) — RTC (audio/video channel), RTM (messaging/transcript relay), and the **Conversational AI Engine** (`agora-agents` SDK) for the voice agent pipeline |
-| **Speech-to-text** | Deepgram (via Agora's resold, no-key-required preset) or Sarvam AI (for Indian language support), configurable |
-| **Language model** | Agora's resold OpenAI-compatible models (`gpt-4o-mini` / `gpt-4.1-mini` / `gpt-5-nano` / `gpt-5-mini`), billed through the Agora project — no separate OpenAI key required |
-| **Text-to-speech** | MiniMax TTS or Sarvam TTS, resold through Agora |
-| **Avatar animation** | Lottie (`@lottiefiles/dotlottie-react`) for the idle loop, plus a one-time HTML5 video intro clip |
-| **Shared whiteboard** | [Excalidraw](https://excalidraw.com/), synced live across participants |
-| **Frontend** | [Next.js](https://nextjs.org/) (App Router), React, TypeScript, Tailwind CSS |
-| **Backend orchestrator** | [Fastify](https://fastify.dev/) (Node.js/TypeScript), long-lived process (required to hold live `AgentSession` references for interrupt/say/think/update calls) |
-| **Transactional email** | [Resend](https://resend.com/) — for absent-student parent notifications |
-| **Persistence (optional)** | PostgreSQL — session/report storage; the app degrades gracefully to in-memory-only if unset |
-| **Monorepo tooling** | pnpm workspaces |
-| **Shared types** | A dedicated `@echosphere/shared-types` package used by both the frontend and orchestrator |
+**A live voice classroom.** Teacher, students, and Athena share one Agora audio channel. Athena listens continuously but only speaks when addressed or invited — a dedicated floor state machine, not just voice-activity detection, decides whether she is allowed to talk at all.
+
+**A quantum playground.** A state-vector simulator for 1–4 qubits with 14 gates (`H`, `X`, `Y`, `Z`, `S`, `S†`, `T`, `T†`, `RX`, `RY`, `RZ`, `CNOT`, `CZ`, `SWAP`), rendered as a wire diagram with live probability bars and an entanglement indicator.
+
+**Athena drives the playground.** When she explains a circuit, she emits it as a JSON payload on a side channel, and it appears on every screen in the room — no teacher clicking required.
+
+**The playground talks back.** The current board state is described back to Athena in plain English, so she can react to what a student actually built.
+
+**Three guided walkthroughs.** Bell pair, Deutsch–Jozsa, and Grover — stepped gate by gate, with narration written to match the amplitudes at each step.
+
+**Challenges graded on physics.** "Build a Bell state" is checked by running the student's circuit and inspecting the resulting quantum state — so *every* correct construction passes, including ones nobody anticipated.
+
+---
+
+## See it running
+
+All screenshots below are from the running application.
+
+### 1. The classroom
+
+A student or teacher joins by name and a 4-digit share code. Language selection covers English, Hindi, Tamil, Telugu, French, Spanish, and German.
+
+![Join screen](docs/images/join.png)
+
+The teacher gets a control panel: bring Athena in, mute her mid-sentence, cut off her current turn, set explanation depth, block topics she must not discuss, and push lesson material she should ground her answers in.
+
+![Teacher control panel](docs/images/teacher-menu-panel.png)
+
+### 2. The Quantum Lab
+
+The Quantum Lab is a tab in the teacher's drawer. The three walkthroughs are fetched from the orchestrator, so adding a lesson server-side requires no frontend change.
+
+![Quantum Lab lesson picker](docs/images/quantum-picker-panel.png)
+
+### 3. Guided walkthroughs
+
+**Step 0** — before any gate runs. Both qubits are definitely `0`: one bar, full height. The circuit is empty because only the gates that have *actually run* are drawn.
+
+![Walkthrough step 0](docs/images/quantum-step0-panel.png)
+
+**After H, then CNOT** — the Bell state. The wires now show `H` on q0 and a CNOT (● control, ⊕ target). The bars are 50/50 on `|00⟩` and `|11⟩`, `|01⟩` and `|10⟩` are impossible, and the **entangled** badge is lit.
+
+![Bell state — entangled](docs/images/quantum-bell-entangled-panel.png)
+
+**Grover's algorithm**, all 12 gates, run to completion. Four candidates, one oracle call, and all the amplitude has piled onto `|11⟩` — the state the oracle marked.
+
+![Grover's algorithm](docs/images/quantum-grover-panel.png)
+
+### 4. Grading by physics, not by answer key
+
+The teacher sets a challenge. A student builds a circuit and submits it. Here is the classic mistake — CNOT before Hadamard:
+
+![Wrong answer with diagnostic feedback](docs/images/quantum-challenge-feedback-panel.png)
+
+The feedback is not "incorrect." It is **"The CNOT runs before the Hadamard, so it has nothing to entangle — the control is still a definite 0. Swap the two gates."**
+
+Swap the two gates and resubmit:
+
+![Correct answer](docs/images/quantum-challenge-correct-panel.png)
+
+Both verdicts appear in the teacher's submissions list, so they can see the room's understanding in real time. **Verdicts go to the submitting student and the teacher — never to the whole room.** A publicly wrong answer is the fastest way to stop a quiet student from trying twice.
+
+---
+
+## The two-way loop (the core of PS 26140)
+
+Most "AI + education" demos are one-directional: the AI talks, the student listens. The requirement here is a loop, and it has two halves.
+
+### Athena → the screen
+
+Athena appends one JSON object to each spoken turn. The TTS layer strips brace-delimited content before synthesis, so the payload is never spoken aloud — it rides the existing voice pipeline as a side channel with no second model and no extra API call.
+
+```json
+{"circuit":{"qubits":2,"gates":[
+  {"gate":"h","qubit":0},
+  {"gate":"cnot","qubit":0,"target":1}
+]}}
+```
+
+The orchestrator validates it **field by field** and drops the whole circuit if anything is malformed:
+
+```ts
+// One bad gate drops the entire circuit. A partially-read one would put a
+// circuit on screen that is not the one Athena is describing out loud,
+// which is worse than showing nothing.
+```
+
+This matters because the payload is model output arriving on a path with no schema enforcement. A `"qubit": "0"` (string, not number) or a gate on a nonexistent wire would otherwise reach the simulator and throw inside a live turn. The parser has **13 dedicated tests**, almost all of them rejection cases.
+
+### The screen → Athena
+
+The reverse direction is `describeForAgent()`, which turns the board into one paragraph of plain English:
+
+> *The playground shows a 2-qubit circuit: CNOT q0→q1, H on q0. Outcomes: |00⟩ at 50%, |10⟩ at 50%. The qubits are not entangled — the state is still a product.*
+
+Athena receives **conclusions, not amplitudes**. This is deliberate. Handing a language model a raw complex state vector and hoping it narrates correctly is exactly the failure this module exists to prevent — the arithmetic happens in tested code, and the model is given sentences it cannot get wrong.
+
+---
+
+## How the simulator works
+
+`apps/orchestrator/src/quantum/simulator.ts` is a hand-rolled state-vector simulator: pure, zero dependencies, no I/O.
+
+**Why not an npm package?** At 4 qubits the state is 16 complex amplitudes. The arithmetic is a few dozen lines. Writing it here means one file is shared by the grading path and the browser display with no possibility of version skew, and every line is covered by tests asserting against hand-computed values.
+
+**The convention that caused the most bugs:** qubit 0 is the **most significant bit** — matching how wires are drawn top-to-bottom and how kets are written. So qubit 0's stride is `2^(n-1)`, not `1`:
+
+```ts
+const bitOf = (index, qubit, qubits) => (index >> (qubits - 1 - qubit)) & 1;
+const bitMask = (qubit, qubits) => 1 << (qubits - 1 - qubit);
+```
+
+Get this wrong and **probabilities still sum to 1** while the gate lands on the wrong wire. That is why the test suite asserts on named basis states (`P(|11⟩) === 0.5`) rather than just on normalization.
+
+**Entanglement detection** reshapes the state vector across every possible qubit split and tests whether the resulting matrix has rank ≤ 1 (every 2×2 minor vanishes). A product state factors; an entangled one doesn't.
+
+**Bell-state recognition** checks probabilities *and* phase. `(|00⟩ + i|11⟩)/√2` is maximally entangled with identical probabilities to `Φ+` — but it is not a Bell state, and a student who added a stray `T` gate deserves to be told so.
+
+---
+
+## Why the narration is a constant
+
+Lesson narration is hardcoded, not LLM-generated. And the test suite asserts the **prose against the actual amplitudes**:
+
+```ts
+t('grover: the oracle alone moves no bar', () => {
+  // "The bars have not moved — all four are still at 25%."
+  for (let k = 0; k < 4; k += 1) near(after.probabilities[k], 0.25);
+  // "...because a sign is invisible to a probability." The sign must be there.
+  assert.ok(after.amplitudes[3].re < 0, 'the oracle must flip the sign');
+});
+```
+
+"The oracle flipped the sign of the marked state" is a *claim about numbers a student is looking at*. If someone edits a gate without updating the sentence, the build fails. An LLM improvising this would eventually state something false at the worst possible moment, with total confidence, in a voice the class trusts.
+
+This check caught a real error during development: the Grover narration originally claimed the `X` gates move *the marked state* into the `|11⟩` slot. They move `|00⟩` there — the diffusion operator reflects about `|00⟩`, not about the target.
 
 ---
 
 ## Architecture
 
-```
-┌─────────────────┐         ┌──────────────────────┐         ┌─────────────────┐
-│   apps/web       │◄──────►│  apps/orchestrator     │◄──────►│  Agora Cloud     │
-│   (Next.js)      │  REST  │  (Fastify, Node.js)    │  REST  │  ConvoAI Engine  │
-│                   │  + SSE │                         │        │  RTC / RTM       │
-└─────────────────┘         └──────────────────────┘         └─────────────────┘
-        │                             │
-        │  Agora RTC / RTM (browser)  │  holds live AgentSession
-        │  direct connection          │  in memory; relays
-        ▼                             ▼  transcript + control events
-   Live classroom room          Session state, floor logic,
-   (audio, video, board)        quizzes, gaps, reports
-```
+Two channels that must never be merged:
 
-- The **frontend** connects directly to Agora's RTC/RTM channels for audio and the live transcript stream (Agora's RTM SDK is browser-only, so the browser is the only place the agent's live ASR output can be observed).
-- The **orchestrator** is a long-lived Node process — not serverless — because it must hold a live `AgentSession` object in memory to call `interrupt()`, `say()`, `think()`, and `update()` on Athena's running agent.
-- A custom **floor state machine** in the orchestrator sits on top of Agora's own voice-activity detection, giving the teacher unconditional, instant barge-in rights that a generic VAD setting alone can't guarantee.
+- **Audio path** — Agora RTC (speech) + RTM (transcript), owned by Agora's cloud.
+- **Control path** — the orchestrator's own SSE stream down to browsers, HTTP POSTs up.
+
+![System architecture](docs/images/athena-echosphere-architecture-Architecture.drawio.png)
+
+Agora's RTM SDK is **browser-only** — there is no server variant — so it cannot carry control events. This single constraint drives two design decisions:
+
+1. **The transcript relay.** The teacher's browser tab is the only always-present place Athena's transcript can be observed, so it POSTs transcripts and agent state back to the orchestrator. Exactly one relay; two would duplicate every student turn under two names.
+
+2. **The orchestrator is a long-lived process, not serverless.** The floor state machine needs a single authoritative writer, and the live agent session handle must stay in memory for `interrupt()` / `think()` / `update()` / `getHistory()`.
+
+**Browsers never compute state.** The quantum playground is simulated server-side and the results are broadcast. This isn't dogma — it guarantees the bars a student sees are the same numbers the grader used.
+
+![Runtime flows](docs/images/athena-echosphere-architecture-Runtime-Flows.drawio.png)
 
 ---
 
-## Getting Started
+## The classroom platform underneath
+
+The quantum module is built on a full live-classroom system:
+
+| Feature | What it does |
+|---|---|
+| **Turn-taking & restraint** | A floor state machine gives the teacher unconditional barge-in. Athena's restraint is visualized live — `listening` / `held-back` / `speaking` — so the teacher sees when she chose *not* to speak. |
+| **Shared whiteboard** | Excalidraw, synced across participants, writable by Athena when enabled. |
+| **Live quizzes & gap detection** | Timed MCQs scored in real time; when enough students miss the same concept it's flagged as a class-wide learning gap. |
+| **Shared workspace** | A sticky-note board where student questions and doubts Athena deliberately *held back* from answering aloud get pinned instead of lost. |
+| **Absent-student packets** | An AI-written catch-up packet — summary, takeaways, misconceptions, diagnostic quiz — built from the actual session transcript and dispatched by email. |
+| **1:1 catch-up booking** | Students book real office-hours slots from their own view. |
+| **Teacher copilot** | A private Athena instance, visible only to the teacher, for check-in questions and analogies mid-lesson. |
+| **Post-class report** | Concept mastery per student per topic, identified gaps, and a narrative read of the session. |
+| **Multilingual** | Per-participant language preference across 7 languages, with Sarvam AI for Indian-language speech. |
+| **3D avatar** | A TalkingHead avatar with audio-driven viseme lip-sync (HeadAudio), since Agora's TTS exposes no phoneme timing. |
+
+---
+
+## Tech stack
+
+| Layer | Technology |
+|---|---|
+| **Real-time voice** | [Agora](https://www.agora.io/) — RTC, RTM, and the Conversational AI Engine |
+| **Speech-to-text** | Deepgram (Agora-resold) or Sarvam AI for Indian languages |
+| **Language model** | Agora-resold OpenAI-compatible models; optional Groq path |
+| **Text-to-speech** | MiniMax or Sarvam (`bulbul:v3`), resold through Agora |
+| **Quantum simulation** | Hand-written state-vector simulator — no dependency |
+| **Frontend** | Next.js 16 (App Router), React 19, TypeScript, Tailwind |
+| **Backend** | Fastify on Node 22+, long-lived process, TypeScript via `tsx` |
+| **Whiteboard** | Excalidraw |
+| **Avatar** | TalkingHead (Three.js) + HeadAudio viseme classifier |
+| **Email** | Resend |
+| **Persistence** | PostgreSQL (optional — degrades to in-memory) |
+| **Monorepo** | pnpm workspaces + a shared `@echosphere/shared-types` package |
+
+---
+
+## Testing
+
+**356 pure-logic checks across 17 suites**, no browser required:
+
+```bash
+pnpm --filter @echosphere/orchestrator test
+```
+
+The quantum module accounts for 101 of them:
+
+| Suite | Checks | Covers |
+|---|---|---|
+| `quantum.test.ts` | 52 | Every gate, entanglement detection, measurement, grading primitives |
+| `lessons.test.ts` | 12 | Lesson structure **and narration claims vs. real amplitudes** |
+| `quantumSession.test.ts` | 24 | Grading verdicts, lesson stepping, the agent description channel |
+| `control.test.ts` | 13 of 24 | Circuit payload parsing — mostly rejection cases |
+
+Every assertion in `quantum.test.ts` is against a hand-computed or published value, never the simulator's own prior output. From the file header:
+
+> *a simulator that "agrees with itself" proves nothing, and the whole grading path rests on these numbers being right.*
+
+Browser end-to-end suites (Playwright) cover the live agent round trip, the whiteboard, and the speech path.
+
+---
+
+## Getting started
 
 ### Prerequisites
 
-- Node.js
+- Node.js ≥ 22 (`.nvmrc` pins 24)
 - pnpm
-- An Agora project (App ID + App Certificate, plus RESTful API Customer ID/Secret for the Conversational AI Engine)
-- A Resend API key (optional — only needed for the absent-dispatcher email feature)
+- An Agora project — App ID + App Certificate
 
-### Install
+### Install and run
 
 ```bash
 pnpm install
+pnpm dev:classroom      # web (:3000) + orchestrator (:8787) together
 ```
 
-### Run
-
-Two processes run side by side, in separate terminals:
+Then open <http://localhost:3000>, enter a name, choose **Join as teacher**, and create a lesson. The Quantum Lab is in the **Menu** drawer.
 
 ```bash
-# Terminal 1 — frontend
-pnpm --filter web dev
-
-# Terminal 2 — orchestrator
-pnpm --filter @echosphere/orchestrator dev
+pnpm build              # production build of the web app
+pnpm typecheck          # both packages
+pnpm --filter @echosphere/orchestrator test
 ```
 
-The frontend runs at `http://localhost:3000`, the orchestrator at `http://localhost:8787`.
+**For demos, run `pnpm build && pnpm --filter @echosphere/web start` rather than `dev`** — Fast Refresh desynchronizes the RTM client.
 
 ---
 
-## Environment Variables
+## Environment variables
 
-Set these in `apps/orchestrator/.env`:
+Only two are required. Everything else degrades gracefully when unset.
 
 ```dotenv
-# Required — Agora RTC/RTM credentials
+# Required — in apps/web/.env.local AND apps/orchestrator/.env
 NEXT_PUBLIC_AGORA_APP_ID=
 NEXT_AGORA_APP_CERTIFICATE=
 
-# Required — Agora Conversational AI Engine REST credentials
-AGORA_CUSTOMER_ID=
-AGORA_CUSTOMER_SECRET=
-
-# LLM model resold through Agora (one of: gpt-4o-mini, gpt-4.1-mini, gpt-5-nano, gpt-5-mini)
+# Which Agora-resold model Athena speaks with
 LLM_MODEL=gpt-4o-mini
 
-# Optional — Sarvam AI (Indian language STT/TTS); falls back to Deepgram/MiniMax if unset
+# Optional — Indian-language STT/TTS
 SARVAM_API_KEY=
-SARVAM_SPEAKER=
-SARVAM_TARGET_LANGUAGE_CODE=
+SARVAM_SPEAKER=simran
 
 # Optional — absent-student email dispatch
 RESEND_API_KEY=
 
-# Optional — durable session/report storage; omit for in-memory-only mode
+# Optional — durable storage; omit for in-memory only
 DATABASE_URL=
 
-# Orchestrator server
 PORT=8787
 CORS_ORIGINS=http://localhost:3000
 ```
 
+`agora project env write apps/web/.env.local` generates the Agora pair.
+
+**Two model paths that do not share a key.** Athena's in-call voice runs through Agora ConvoAI (billed through the Agora project). Everything outside the call — the catch-up chatbot, reports, translation — goes through `llm/complete.ts`, which picks a provider by the first key present in a fixed order: Gemini → OpenAI → Groq → Anthropic → DeepSeek → Sarvam.
+
 ---
 
-## Project Structure
+## Project structure
 
 ```
 apps/
-  web/                     Next.js frontend
+  web/                              Next.js frontend
     app/
-      join/                 Session join flow
-      teacher/[sessionId]/  Teacher dashboard
-      classroom/[sessionId]/Student classroom view
+      join/                          Join flow
+      teacher/[sessionId]/           Teacher dashboard + drawer tabs
+      classroom/[sessionId]/         Student view
     components/
-      classroom/             Room stage, audio/RTC layer, whiteboard, drawer
-      workspace/              Shared sticky-note workspace
-      support/                Absent dispatcher, 1:1 booking, targeted reading
-      meraki/                 Restraint meter, suppressed-intervention panel
-  orchestrator/              Fastify backend
+      quantum/QuantumPlayground.tsx  Wire diagram, gate palette, bars
+      classroom/                     Stage, RTC layer, whiteboard, avatar
+      workspace/  support/  meraki/  Sticky notes, catch-up, restraint meter
+
+  orchestrator/                     Fastify backend (long-lived)
     src/
-      agent/                  Agora ConvoAI agent lifecycle, prompt building
-      routes/                  REST API (sessions, agent control, quizzes, workspace…)
-      support/                 Absent-packet generation + dispatch, targeted reading
-      gaps/                    Learning-gap detection
-      state/                   In-memory session registry, floor state machine
+      quantum/
+        simulator.ts                 State-vector simulator — pure, no deps
+        lessons.ts                   Bell / Deutsch-Jozsa / Grover + narration
+        quantumSession.ts            Session state, grading, agent bridge
+      agent/                         ConvoAI lifecycle, prompt, control parser
+      floor/                         Turn-taking state machine
+      routes/                        REST + SSE
+      gaps/  support/  report/       Gap detection, packets, post-class report
+    scripts/                         17 test suites
+
 packages/
-  shared-types/              Types shared between frontend and orchestrator
+  shared-types/                     Types shared by frontend and backend
 ```
 
 ---
 
-*Built on Agora's real-time infrastructure. Athena EchoSphere — not an AI running the classroom. A teacher, with a co-teacher who knows exactly when to speak, and when not to.*
+## Known limitations
+
+Stated plainly, because a demo that hides these is worse than one that doesn't:
+
+- **The gate palette offers 6 of the 14 supported gates.** `RX`/`RY`/`RZ` need an angle input, and a rotation slider on the first screen a beginner sees costs more than it teaches. The simulator supports them for Athena-authored circuits; the student palette doesn't expose them yet.
+- **Maximum 4 qubits.** The state vector is exponential and this is a teaching tool, not a research simulator. 4 qubits is 16 amplitudes — already more than a student can hold in their head.
+- **The playground is mounted in the teacher view.** The student-side surface exists as a component and is wired to the same SSE state, but is not yet placed in the student route.
+- **The orchestrator cannot deploy to Vercel.** It needs a long-lived process for the floor machine and the in-memory agent handle. Deploy it separately (`Dockerfile.orchestrator`) and point the web app at it via `NEXT_PUBLIC_ORCHESTRATOR_URL`.
+- **Session state is in-memory**, flushed to Postgres once at session end. A second orchestrator replica would need sticky routing by session ID.
+
+---
+
+*Athena EchoSphere — a co-teacher who knows when to speak, and a quantum lab that shows students exactly why their circuit didn't work.*
