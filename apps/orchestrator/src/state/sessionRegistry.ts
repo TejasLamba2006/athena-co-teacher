@@ -36,6 +36,9 @@ import {
 import { initialFloor } from '../floor/floorMachine.js';
 import type { LessonStore } from '../lesson/lessonStore.js';
 import { createLessonStore } from '../lesson/lessonStore.js';
+// quantumSession imports ClassroomSession back, but only as a type, so the
+// cycle is erased at compile time and never exists at runtime.
+import { emptyQuantumState } from '../quantum/quantumSession.js';
 
 /** How many transcript segments the rolling context window keeps (§3.4). */
 const ROLLING_TRANSCRIPT_WINDOW = 40;
@@ -269,7 +272,23 @@ export interface ClassroomSession {
      * map a late joiner is handed a picture frame with no picture in it.
      */
     files: WhiteboardPublicState['files'];
+    /**
+     * Ids wiped by the last `clear`, held against re-insertion. A client's
+     * periodic scene POST can be in flight when the board is cleared, and
+     * merge-by-id would otherwise resurrect every element it had drawn — the
+     * merge keeps anything whose id is no longer in the scene, which after a
+     * clear is everything. Fresh strokes mint fresh Excalidraw uuids, so the
+     * tombstones only ever catch the stale posts they are meant to catch.
+     */
+    cleared: { elements: Set<string>; files: Set<string> };
   };
+
+  /**
+   * The quantum playground. Always present rather than optional: every write
+   * path assumes a state object exists, and an optional field would put a
+   * `?? emptyQuantumState()` at each of them.
+   */
+  quantum: import('@echosphere/shared-types').QuantumPublicState;
 
   workspace?: import('@echosphere/shared-types').MiroWorkspaceState;
   targetedReadings?: import('@echosphere/shared-types').TargetedReadingItem[];
@@ -349,7 +368,9 @@ export function createSession(
       presenting: null,
       scene: [],
       files: [],
+      cleared: { elements: new Set(), files: new Set() },
     },
+    quantum: emptyQuantumState(),
     library: {
       activeBookId: 'ncert-7-ch2',
       currentPage: 0,

@@ -17,7 +17,7 @@
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
-import type { ClassroomEvent, RoomState } from '@echosphere/shared-types';
+import { toPublicQuiz, type ClassroomEvent, type RoomState } from '@echosphere/shared-types';
 import {
   applyTeacherCommand,
   broadcastParticipantJoined,
@@ -27,6 +27,8 @@ import {
   startQuiz,
   submitQuizAnswer,
   releaseIllustrationState,
+  requestFloor,
+  releaseFloor,
 } from '../classroomController.js';
 import {
   agentStatus,
@@ -56,6 +58,16 @@ import {
   resolveStickyNote,
   deleteStickyNote,
 } from '../workspace/workspaceManager.js';
+import {
+  applyCircuit,
+  closeQuantum,
+  gradeSubmission,
+  publicQuantum,
+  setChallenge,
+  startLesson,
+  stepLesson,
+} from '../quantum/quantumSession.js';
+import { LESSONS } from '../quantum/lessons.js';
 import { generateAbsentStudentPacket, dispatchAbsentPacket } from '../support/absentPacket.js';
 import {
   getTargetedReadings,
@@ -145,6 +157,26 @@ const commandSchema = z.object({
     }),
     z.object({ type: z.literal('END_SESSION') }),
   ]),
+});
+
+/**
+ * The fields a PATCH on a sticky note may change. Everything else on a note is
+ * either someone else's route (`votes`/`votedBy` → /vote, `status` → /resolve,
+ * which also stamps `resolvedAt`) or set at creation (author, id). The old
+ * handler passed the body straight into `Object.assign`, so a crafted request
+ * could rewrite any of them — and the result was broadcast to the whole room
+ * as the authoritative note. Zod strips unlisted keys, which is what makes
+ * them unpatchable here.
+ */
+export const stickyNotePatch = z.object({
+  topic: z.string().min(1).optional(),
+  content: z.string().min(1).optional(),
+  suggestedAnswer: z.string().optional(),
+  category: z
+    .enum(['held-back-doubt', 'student-question', 'core-concept', 'teacher-insight', 'key-takeaway'])
+    .optional(),
+  color: z.enum(['yellow', 'coral', 'cyan', 'purple', 'green', 'amber']).optional(),
+  tags: z.array(z.string()).optional(),
 });
 
 export async function classroomRoutes(app: FastifyInstance): Promise<void> {
@@ -398,6 +430,137 @@ export async function classroomRoutes(app: FastifyInstance): Promise<void> {
     return reply.send({ ok: true, presenting: session.whiteboard.presenting });
   });
 
+  // ─── quantum playground (PS 26140) ────────────────────────────────────────
+
+  /**
+   * One gate, as the wire carries it.
+   *
+   * Validated here rather than trusted, because two of the three writers are
+   * not people: Athena emits circuits as JSON, and a student's browser posts
+   * whatever its drag-and-drop produced. `canSimulate` catches out-of-range
+   * wires downstream; this catches the shape.
+   */
+  const gateSchema = z.object({
+    gate: z.enum(['h', 'x', 'y', 'z', 's', 'sdg', 't', 'tdg', 'rx', 'ry', 'rz', 'cnot', 'cz', 'swap']),
+    qubit: z.number().int().min(0),
+    target: z.number().int().min(0).optional(),
+    angle: z.number().optional(),
+  });
+  const circuitSchema = z.object({
+    qubits: z.number().int().min(1),
+    // A bound on gate count so a malformed payload cannot hand the simulator a
+    // million-element array; no teaching circuit comes close to this.
+    gates: z.array(gateSchema).max(64),
+  });
+
+  app.get('/api/sessions/:sessionId/quantum', async (request, reply) => {
+    const session = requireSession(request, reply);
+    if (!session) return;
+    return reply.send({
+      state: publicQuantum(session),
+      lessons: LESSONS.map((l) => ({ id: l.id, title: l.title, summary: l.summary })),
+    });
+  });
+
+  /** Put a circuit on the room's screen and run it. Teacher or Athena. */
+  app.post('/api/sessions/:sessionId/quantum/circuit', async (request, reply) => {
+    const session = requireSession(request, reply);
+    if (!session) return;
+    const { participantId, circuit } = z
+      .object({ participantId: z.string(), circuit: circuitSchema })
+      .parse(request.body);
+    if (!isTeacher(session, participantId)) {
+      return reply.code(403).send({ error: 'Only the teacher can drive the shared playground' });
+    }
+    const outcome = applyCircuit(session, circuit);
+    if (!outcome.ok) return reply.code(400).send({ error: outcome.reason });
+    return reply.send({ ok: true, result: outcome.result });
+  });
+
+  app.post('/api/sessions/:sessionId/quantum/lesson', async (request, reply) => {
+    const session = requireSession(request, reply);
+    if (!session) return;
+    const { participantId, lessonId } = z
+      .object({ participantId: z.string(), lessonId: z.string() })
+      .parse(request.body);
+    if (!isTeacher(session, participantId)) {
+      return reply.code(403).send({ error: 'Only the teacher can start a walkthrough' });
+    }
+    const outcome = startLesson(session, lessonId);
+    if (!outcome.ok) return reply.code(400).send({ error: outcome.reason });
+    return reply.send({ ok: true, state: publicQuantum(session) });
+  });
+
+  app.post('/api/sessions/:sessionId/quantum/step', async (request, reply) => {
+    const session = requireSession(request, reply);
+    if (!session) return;
+    const { participantId, delta } = z
+      .object({ participantId: z.string(), delta: z.number().int().min(-1).max(1) })
+      .parse(request.body);
+    if (!isTeacher(session, participantId)) {
+      return reply.code(403).send({ error: 'Only the teacher can advance the walkthrough' });
+    }
+    const outcome = stepLesson(session, delta);
+    if (!outcome.ok) return reply.code(400).send({ error: outcome.reason });
+    return reply.send({ ok: true, stepIndex: outcome.stepIndex });
+  });
+
+  app.post('/api/sessions/:sessionId/quantum/challenge', async (request, reply) => {
+    const session = requireSession(request, reply);
+    if (!session) return;
+    const { participantId, challenge } = z
+      .object({
+        participantId: z.string(),
+        challenge: z.object({
+          id: z.string(),
+          prompt: z.string(),
+          qubits: z.number().int().min(1),
+          check: z.enum(['bell', 'state']),
+          expected: z.array(z.number()).optional(),
+        }),
+      })
+      .parse(request.body);
+    if (!isTeacher(session, participantId)) {
+      return reply.code(403).send({ error: 'Only the teacher can set a challenge' });
+    }
+    setChallenge(session, challenge);
+    return reply.send({ ok: true });
+  });
+
+  /**
+   * A student's answer. Open to any participant — this is the one quantum route
+   * students are meant to reach.
+   *
+   * The verdict goes to the submitter's own view and to the teacher, never to
+   * the room: a public wrong answer is the fastest way to stop a quiet student
+   * from trying a second time.
+   */
+  app.post('/api/sessions/:sessionId/quantum/submit', async (request, reply) => {
+    const session = requireSession(request, reply);
+    if (!session) return;
+    const { participantId, circuit } = z
+      .object({ participantId: z.string(), circuit: circuitSchema })
+      .parse(request.body);
+    if (!session.participants.has(participantId)) {
+      return reply.code(403).send({ error: 'Unknown participant' });
+    }
+    const verdict = gradeSubmission(session, participantId, circuit);
+    if ('ok' in verdict) return reply.code(400).send({ error: verdict.reason });
+    publishToTeachers(session.sessionId, { kind: 'echosphere:quantum-verdict', verdict });
+    return reply.send({ ok: true, verdict });
+  });
+
+  app.post('/api/sessions/:sessionId/quantum/close', async (request, reply) => {
+    const session = requireSession(request, reply);
+    if (!session) return;
+    const { participantId } = z.object({ participantId: z.string() }).parse(request.body);
+    if (!isTeacher(session, participantId)) {
+      return reply.code(403).send({ error: 'Only the teacher can close the playground' });
+    }
+    closeQuantum(session);
+    return reply.send({ ok: true });
+  });
+
   app.post(
     '/api/sessions/:sessionId/whiteboard/scene',
     {
@@ -632,9 +795,11 @@ export async function classroomRoutes(app: FastifyInstance): Promise<void> {
         kind: 'echosphere:session-ended',
         sessionId: session.sessionId,
       });
-      // Fire-and-forget: a database hiccup (or no DATABASE_URL at all) must
-      // not stop the teacher's "end lesson" action from completing.
-      void persistSessionEnd(session).catch((err) =>
+      // Awaited: this is the session's only chance to reach the database, and
+      // a fire-and-forget flush can be lost if the process exits right after
+      // the reply. The catch keeps a database hiccup (or no DATABASE_URL at
+      // all) from failing the teacher's "end lesson" action.
+      await persistSessionEnd(session).catch((err) =>
         app.log.error({ err }, 'failed to persist session on END_SESSION'),
       );
       return reply.send({ ok: true });
@@ -776,7 +941,7 @@ export async function classroomRoutes(app: FastifyInstance): Promise<void> {
     const session = requireSession(request, reply);
     if (!session) return;
     const { noteId } = request.params as { noteId: string };
-    const patch = request.body as Record<string, unknown>;
+    const patch = stickyNotePatch.parse(request.body);
     const updated = updateStickyNote(session, noteId, patch);
     if (!updated) return reply.code(404).send({ error: 'Sticky note not found' });
     return reply.send(updated);
@@ -816,18 +981,27 @@ export async function classroomRoutes(app: FastifyInstance): Promise<void> {
     const session = requireSession(request, reply);
     if (!session) return;
     const { noteId } = request.params as { noteId: string };
+    const { participantId } = z.object({ participantId: z.string() }).parse(request.body);
+    if (!isTeacher(session, participantId)) {
+      return reply.code(403).send({ error: 'Only the teacher can ask Athena to explain a note' });
+    }
     const ws = getWorkspaceState(session);
     const note = ws.notes.find((n) => n.id === noteId);
     if (!note) return reply.code(404).send({ error: 'Sticky note not found' });
 
-    // Instruct Athena to address this note out loud to the class
-    grantSpeakPermit(session, 'TEACHER_INVOKED');
+    // Instruct Athena to address this note out loud to the class. This goes
+    // through requestFloor like every other speech path: a raw
+    // grantSpeakPermit skips the mute veto and would let a muted agent talk.
+    if (!requestFloor(session, 'TEACHER_INVOKED')) {
+      return reply.code(409).send({ error: 'Blocked by agent policy (is the agent muted?)' });
+    }
     const promptDirective = `The class wants to address a question from the shared board: "${note.content}". Please give a 2-3 sentence clear, encouraging explanation and invite a student to verify.`;
-    void think(session.sessionId, promptDirective);
+    const ok = await think(session.sessionId, promptDirective);
+    if (!ok) releaseFloor(session);
 
     // Mark as addressed
     resolveStickyNote(session, noteId, 'addressed');
-    return reply.send({ ok: true, note });
+    return reply.send({ ok, note });
   });
 
   // ─── Nobody Left Behind: Absent Student Packet ─────────────────────────────
@@ -1490,8 +1664,8 @@ export async function classroomRoutes(app: FastifyInstance): Promise<void> {
     endSession(session.sessionId);
     releaseIllustrationState(session.sessionId);
     closeRoom(session.sessionId);
-    // See the END_SESSION handler above: fire-and-forget, same reasoning.
-    void persistSessionEnd(session).catch((err) =>
+    // Awaited for the same reason as END_SESSION above.
+    await persistSessionEnd(session).catch((err) =>
       app.log.error({ err }, 'failed to persist session on DELETE'),
     );
     return reply.send({ ok: true });
@@ -1525,7 +1699,18 @@ function publicSession(session: ClassroomSession) {
   };
 }
 
-function roomState(session: ClassroomSession): RoomState {
+/** Exported for the quiz.test.ts shape check; the SSE route is its only caller. */
+export function roomState(session: ClassroomSession): RoomState {
+  // Map order is creation order, which is how the cards stacked up live. An
+  // open question rides `toPublicQuiz` (no key); a closed one carries the
+  // answer `quiz-closed` already broadcast to the room.
+  const quizzes = Array.from(session.quizzes.values()).map((quiz) => ({
+    ...toPublicQuiz(quiz),
+    ...(quiz.closedAt
+      ? { closedAt: quiz.closedAt, correctAnswer: quiz.correctAnswer }
+      : {}),
+  }));
+
   return {
     sessionId: session.sessionId,
     channel: session.channel,
@@ -1544,7 +1729,9 @@ function roomState(session: ClassroomSession): RoomState {
     targetedReadings: getTargetedReadings(session),
     catchupSlots: getCatchupSlots(session),
     raisedHands: Array.from(session.raisedHands),
+    quizzes,
     whiteboard: publicWhiteboard(session),
+    quantum: publicQuantum(session),
     library: session.library,
     screenShareAllowed: Array.from(session.screenShareAllowed),
     activeScreenShare: session.activeScreenShare,

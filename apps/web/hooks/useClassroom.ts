@@ -32,6 +32,8 @@ import type {
   BoardFile,
   WhiteboardJoin,
   WhiteboardPublicState,
+  QuantumPublicState,
+  QuantumVerdict,
   LibraryPublicState,
   LibraryBook,
 } from '@echosphere/shared-types';
@@ -111,6 +113,9 @@ export interface ClassroomView {
   restraintScore?: number;
   celebration: CelebrationTrigger | null;
   whiteboard: WhiteboardPublicState | null;
+  quantum: QuantumPublicState | null;
+  /** Graded challenge submissions, newest first. Teachers see the room's. */
+  quantumVerdicts: QuantumVerdict[];
   whiteboardJoin: WhiteboardJoin | null;
   whiteboardJoinError: string | null;
   /** Non-null while someone is presenting the board, mirroring activeScreenShare. */
@@ -176,6 +181,13 @@ export function useClassroom(
   const [restraintScore, setRestraintScore] = useState<number | undefined>(undefined);
   const [celebration, setCelebration] = useState<CelebrationTrigger | null>(null);
   const [whiteboard, setWhiteboard] = useState<WhiteboardPublicState | null>(null);
+  const [quantum, setQuantum] = useState<QuantumPublicState | null>(null);
+  /**
+   * Verdicts land here newest-first. Kept as a list rather than a single value
+   * so a teacher watching a challenge sees each student's attempt arrive
+   * instead of only whoever submitted last.
+   */
+  const [quantumVerdicts, setQuantumVerdicts] = useState<QuantumVerdict[]>([]);
   const [activeWhiteboard, setActiveWhiteboard] = useState<ActiveWhiteboard | null>(null);
   const [boardScene, setBoardScene] = useState<BoardElement[]>([]);
   const [boardFiles, setBoardFiles] = useState<BoardFile[]>([]);
@@ -227,6 +239,7 @@ export function useClassroom(
           setLibrary(event.state.library);
           void refreshLibrary();
         }
+        if (event.state.quantum) setQuantum(event.state.quantum);
         if (event.state.workspace) setWorkspace(event.state.workspace);
         if (event.state.targetedReadings) setTargetedReadings(event.state.targetedReadings);
         // Restored: the screen-share merge dropped these two, which is what
@@ -234,6 +247,30 @@ export function useClassroom(
         // loses their raised hand and the room's booked catch-up slots.
         if (event.state.catchupSlots) setCatchupSlots(event.state.catchupSlots);
         if (event.state.raisedHands) setRaisedHands(event.state.raisedHands);
+        // Quizzes ride the snapshot for the same late-joiner reason as raised
+        // hands: the bus replays nothing, so without this a reload mid-quiz
+        // lands on no card at all. Merge by quizId rather than overwrite — a
+        // reconnect must not wipe answers and results the open client already
+        // holds, so an existing card keeps everything but its deadline, exactly
+        // like the quiz-issued re-issue branch.
+        if (event.state.quizzes) {
+          setQuizzes((prev) => {
+            const byId = new Map(prev.map((q) => [q.quiz.quizId, q]));
+            for (const quiz of event.state.quizzes!) {
+              const existing = byId.get(quiz.quizId);
+              if (existing) {
+                byId.set(quiz.quizId, {
+                  ...existing,
+                  quiz: { ...existing.quiz, deadline: quiz.deadline },
+                  correctAnswer: quiz.correctAnswer ?? existing.correctAnswer,
+                });
+              } else {
+                byId.set(quiz.quizId, { quiz, results: {} });
+              }
+            }
+            return [...byId.values()];
+          });
+        }
         if (event.state.language) setMyLanguage(event.state.language);
         // No cast needed: RoomState declares both fields.
         setScreenShareAllowed(event.state.screenShareAllowed ?? []);
@@ -417,6 +454,14 @@ export function useClassroom(
 
       case 'echosphere:whiteboard':
         setWhiteboard(event.board);
+        break;
+
+      case 'echosphere:quantum':
+        setQuantum(event.state);
+        break;
+
+      case 'echosphere:quantum-verdict':
+        setQuantumVerdicts((prev) => [event.verdict, ...prev].slice(0, 50));
         break;
 
       case 'echosphere:whiteboard-started':
@@ -651,8 +696,16 @@ export function useClassroom(
       .then((history) => {
         if (cancelled || history.length === 0) return;
         setTranscript((prev) => {
-          if (prev.length > 0) return prev;
-          return history.slice(-MAX_TRANSCRIPT);
+          // Merge per segmentId instead of bailing on the first live arrival:
+          // one interim segment reaching the client before this fetch answered
+          // used to drop the entire older history, so a reload during speech
+          // showed a transcript starting mid-sentence. Local entries win on id
+          // (same or newer text — the server republishes grown turns), and the
+          // backfill slots in ahead of them in server order.
+          const seen = new Set(prev.map((s) => s.segmentId));
+          const backfill = history.filter((s) => !seen.has(s.segmentId));
+          if (backfill.length === 0) return prev;
+          return [...backfill, ...prev].slice(-MAX_TRANSCRIPT);
         });
       })
       .catch(() => undefined);
@@ -732,12 +785,13 @@ export function useClassroom(
   );
 
   const pushBoardScene = useCallback(
-    (elements: BoardElement[], files: BoardFile[]) => {
-      if (!participantId) return;
-      void orchestrator
-        .pushBoardScene(sessionId, participantId, elements, files)
-        .catch(() => undefined);
-    },
+    // Resolves when the server has the batch, rejects when it does not —
+    // ExcalidrawBoard's flush loop retries on rejection. Swallowing the error
+    // here is what stranded edits on the old send-and-forget path.
+    (elements: BoardElement[], files: BoardFile[]) =>
+      participantId
+        ? orchestrator.pushBoardScene(sessionId, participantId, elements, files)
+        : undefined,
     [sessionId, participantId],
   );
 
@@ -937,6 +991,8 @@ export function useClassroom(
     restraintScore,
     celebration,
     whiteboard,
+    quantum,
+    quantumVerdicts,
     whiteboardJoin,
     whiteboardJoinError,
     activeWhiteboard,

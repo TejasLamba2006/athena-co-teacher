@@ -75,6 +75,7 @@ import {
   mergeSceneElements,
   openWhiteboard,
 } from './whiteboard/boardSession.js';
+import { applyCircuit } from './quantum/quantumSession.js';
 import {
   forgetIllustrations,
   generateIllustration,
@@ -756,7 +757,16 @@ export async function ingestTranscript(
       await interruptAgent(session.sessionId).catch(() => undefined);
       session.activeQuestionerId = null;
     }
-  } else {
+  } else if (isFinal || session.floor.state !== 'AGENT_SPEAKING') {
+    // The interim-vs-final lesson from the teacher branch above, applied here:
+    // a non-final student fragment must not move a floor the agent holds.
+    // Interim relays — including Athena's own TTS returning through a student's
+    // open mic, which only final segments echo-strip — used to flip
+    // AGENT_SPEAKING to OPEN_FLOOR unconditionally, so the end-of-turn
+    // releaseFloor saw the wrong state and never re-armed the quiz countdown:
+    // the answer window stayed truncated while she was still reading the
+    // options aloud. A student genuinely answering still takes the floor, on
+    // the final segment.
     session.floor = onHumanSpeechStart(
       session.floor,
       'student',
@@ -1313,6 +1323,16 @@ export function applyControl(
     });
   }
 
+  if (control.circuit) {
+    // `applyCircuit` re-validates and returns a rejection rather than throwing,
+    // so a circuit that parsed but cannot simulate costs a log line, not the
+    // turn. Athena has already said her half out loud by this point.
+    const applied = applyCircuit(session, control.circuit);
+    if (!applied.ok) {
+      console.warn(`[quantum] agent circuit rejected in session ${session.sessionId}: ${applied.reason}`);
+    }
+  }
+
   if (control.library) {
     if (control.library.action === 'open' && typeof control.library.page === 'number') {
       const targetBookId = control.library.bookId || session.library.activeBookId;
@@ -1572,6 +1592,10 @@ export async function applyTeacherCommand(
       // this is the moment the plan calls out as worth demoing (§3.10).
       await interruptAgent(session.sessionId).catch(() => undefined);
       releaseFloor(session);
+      // Revoke any permit granted before the mute. Without this a standing
+      // permit — or the continuation window — lets a turn start after the
+      // veto, exactly what the doc above says mute must prevent.
+      clearSpeakPermit(session);
       // A running multi-question quiz stops here too.
       session.activeQuizSet = null;
       session.restraintMeterState = 'listening';

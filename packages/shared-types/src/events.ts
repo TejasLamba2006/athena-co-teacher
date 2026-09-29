@@ -36,6 +36,7 @@ import type {
   LibraryBookAddedPayload,
   LibraryBookRemovedPayload,
 } from './library.js';
+import type { QuantumPublicState, QuantumVerdict } from './quantum.js';
 
 /** Discriminator prefix so classroom events are never confused with Agora's own. */
 export const ECHOSPHERE_EVENT_PREFIX = 'echosphere:' as const;
@@ -145,7 +146,18 @@ export type ClassroomEvent =
   | { kind: 'echosphere:library-present'; payload: LibraryPresentPayload }
   | { kind: 'echosphere:library-book-added'; payload: LibraryBookAddedPayload }
   | { kind: 'echosphere:library-book-removed'; payload: LibraryBookRemovedPayload }
-  | { kind: 'echosphere:library-student-position'; position: import('./library.js').StudentReadingPosition };
+  | { kind: 'echosphere:library-student-position'; position: import('./library.js').StudentReadingPosition }
+  /**
+   * The quantum playground, in full, after any change.
+   *
+   * One event carrying the whole state rather than a set of granular deltas:
+   * the payload is a handful of gates and at most sixteen probabilities, so the
+   * bandwidth argument for deltas never applies, and a student joining mid-
+   * lesson gets a correct screen from the first event they receive.
+   */
+  | { kind: 'echosphere:quantum'; state: QuantumPublicState }
+  /** A graded challenge submission. Sent to the submitter and the teacher. */
+  | { kind: 'echosphere:quantum-verdict'; verdict: QuantumVerdict };
 
 /** Who is presenting a 3D model, if anyone — mirrors ActiveWhiteboard/activeScreenShare. */
 export interface ActiveModel {
@@ -202,6 +214,17 @@ export function toPublicQuiz(quiz: QuizQuestion): PublicQuiz {
   };
 }
 
+/**
+ * A quiz as RoomState hands it to a joiner: the public card, plus the revealed
+ * key once the quiz has closed. `correctAnswer` is only ever present alongside
+ * `closedAt`, because `quiz-closed` broadcasts the answer to the whole room at
+ * that exact moment — restoring it leaks nothing the room has not already heard.
+ */
+export type RestoredQuiz = PublicQuiz & {
+  closedAt?: number;
+  correctAnswer?: string;
+};
+
 export interface RoomState {
   sessionId: string;
   channel: string;
@@ -220,6 +243,14 @@ export interface RoomState {
   catchupSlots?: CatchupAvailabilitySlot[];
   raisedHands?: string[];
   /**
+   * Quizzes at join time, oldest first — same late-joiner rationale as
+   * `raisedHands`: the SSE bus has no replay, so a reload during an open quiz
+   * used to land a student on a dead card with no way to answer until the
+   * countdown expired. Open questions carry no key; closed ones carry the
+   * answer the room already heard.
+   */
+  quizzes?: RestoredQuiz[];
+  /**
    * Screen-share state at join time. The live `screen-share-*` events keep an
    * open client current, but a late joiner or a reload has no event to replay —
    * without these two the client starts with empty permissions and no idea
@@ -227,6 +258,7 @@ export interface RoomState {
    */
   whiteboard?: WhiteboardPublicState;
   library?: LibraryPublicState;
+  quantum?: QuantumPublicState;
   screenShareAllowed?: string[];
   activeScreenShare?: { participantId: string; displayName: string } | null;
   activeModel?: ActiveModel | null;

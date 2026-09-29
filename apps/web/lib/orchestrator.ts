@@ -23,6 +23,11 @@ import type {
   LibraryBook,
   LibraryPublicState,
   LibrarySearchResult,
+  QuantumChallenge,
+  QuantumCircuit,
+  QuantumPublicState,
+  QuantumResult,
+  QuantumVerdict,
 } from '@echosphere/shared-types';
 
 import { getAccessToken } from './supabase';
@@ -179,17 +184,6 @@ export const orchestrator = {
     }),
 
   /**
-   * Short-lived Anam session token for the silent video overlay. Throws
-   * (501) if Anam isn't configured on this deployment — callers should
-   * treat that as "fall back to the Lottie loop," not a hard error.
-   */
-  getAnamToken: (sessionId: string) =>
-    request<{ sessionToken: string }>(`/api/sessions/${sessionId}/anam-token`, {
-      method: 'POST',
-      body: JSON.stringify({}),
-    }),
-
-  /**
    * Relays one transcript segment from the browser's RTM stream to the
    * orchestrator. Agora's RTM has no server SDK, so the browser is the only
    * place these events can be observed — see the relay note in ClassroomRoom.
@@ -228,6 +222,60 @@ export const orchestrator = {
     request<WhiteboardJoin>(
       `/api/sessions/${sessionId}/whiteboard?participantId=${encodeURIComponent(participantId)}`,
     ),
+
+  // ─── quantum playground ───────────────────────────────────────────────────
+
+  getQuantum: (sessionId: string) =>
+    request<{
+      state: QuantumPublicState;
+      lessons: Array<{ id: string; title: string; summary: string }>;
+    }>(`/api/sessions/${sessionId}/quantum`),
+
+  /** Teacher-only: put a circuit on the room's screen and run it. */
+  runQuantumCircuit: (sessionId: string, participantId: string, circuit: QuantumCircuit) =>
+    request<{ ok: true; result: QuantumResult }>(`/api/sessions/${sessionId}/quantum/circuit`, {
+      method: 'POST',
+      body: JSON.stringify({ participantId, circuit }),
+    }),
+
+  startQuantumLesson: (sessionId: string, participantId: string, lessonId: string) =>
+    request<{ ok: true; state: QuantumPublicState }>(`/api/sessions/${sessionId}/quantum/lesson`, {
+      method: 'POST',
+      body: JSON.stringify({ participantId, lessonId }),
+    }),
+
+  stepQuantumLesson: (sessionId: string, participantId: string, delta: 1 | -1) =>
+    request<{ ok: true; stepIndex: number }>(`/api/sessions/${sessionId}/quantum/step`, {
+      method: 'POST',
+      body: JSON.stringify({ participantId, delta }),
+    }),
+
+  setQuantumChallenge: (
+    sessionId: string,
+    participantId: string,
+    challenge: QuantumChallenge,
+  ) =>
+    request<{ ok: true }>(`/api/sessions/${sessionId}/quantum/challenge`, {
+      method: 'POST',
+      body: JSON.stringify({ participantId, challenge }),
+    }),
+
+  /**
+   * Submits a student's answer. The verdict comes back on the response rather
+   * than only over SSE — the student who pressed the button should see the
+   * result even if their event stream has dropped.
+   */
+  submitQuantumCircuit: (sessionId: string, participantId: string, circuit: QuantumCircuit) =>
+    request<{ ok: true; verdict: QuantumVerdict }>(`/api/sessions/${sessionId}/quantum/submit`, {
+      method: 'POST',
+      body: JSON.stringify({ participantId, circuit }),
+    }),
+
+  closeQuantum: (sessionId: string, participantId: string) =>
+    request<{ ok: boolean }>(`/api/sessions/${sessionId}/quantum/close`, {
+      method: 'POST',
+      body: JSON.stringify({ participantId }),
+    }),
 
   presentWhiteboard: (sessionId: string, participantId: string, presenting: boolean) =>
     request<{ ok: true; presenting: ActiveWhiteboard | null }>(
@@ -409,10 +457,10 @@ export const orchestrator = {
       method: 'DELETE',
     }),
 
-  explainStickyNote: (sessionId: string, noteId: string) =>
+  explainStickyNote: (sessionId: string, noteId: string, participantId: string) =>
     request<{ ok: boolean; note: import('@echosphere/shared-types').MiroStickyNote }>(
       `/api/sessions/${sessionId}/workspace/notes/${noteId}/explain`,
-      { method: 'POST' },
+      { method: 'POST', body: JSON.stringify({ participantId }) },
     ),
 
   // ─── Nobody Left Behind: Absent-Student Packet ─────────────────────────────

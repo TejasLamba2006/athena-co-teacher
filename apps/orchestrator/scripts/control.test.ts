@@ -90,4 +90,95 @@ t('reads a board write payload', () => {
   assert.ok(!r.spoken.includes('{'));
 });
 
+// ─── quantum circuit payloads (PS 26140) ─────────────────────────────────────
+//
+// This is the Athena -> screen half of the playground. Everything below is a
+// shape the model can actually emit, and a bad one reaching the simulator
+// throws inside a live turn — so the parser must reject, never half-read.
+
+t('reads a Bell circuit payload', () => {
+  const r = parseAgentTurn(
+    'Watch what happens when the Hadamard comes first. ' +
+      '{"circuit":{"qubits":2,"gates":[{"gate":"h","qubit":0},{"gate":"cnot","qubit":0,"target":1}]}}',
+  );
+  assert.equal(r.control?.circuit?.qubits, 2);
+  assert.equal(r.control?.circuit?.gates.length, 2);
+  assert.equal(r.control?.circuit?.gates[1]?.gate, 'cnot');
+  assert.equal(r.control?.circuit?.gates[1]?.target, 1);
+  assert.ok(!r.spoken.includes('{'), 'the payload must never reach the transcript');
+});
+
+t('accepts an uppercase gate name', () => {
+  const r = parseAgentTurn('{"circuit":{"qubits":1,"gates":[{"gate":"H","qubit":0}]}}');
+  assert.equal(r.control?.circuit?.gates[0]?.gate, 'h');
+});
+
+t('rejects a gate on a wire that does not exist', () => {
+  const r = parseAgentTurn('{"circuit":{"qubits":2,"gates":[{"gate":"h","qubit":5}]}}');
+  assert.equal(r.control?.circuit, undefined);
+});
+
+t('rejects a two-qubit gate with no target', () => {
+  const r = parseAgentTurn('{"circuit":{"qubits":2,"gates":[{"gate":"cnot","qubit":0}]}}');
+  assert.equal(r.control?.circuit, undefined);
+});
+
+t('rejects a two-qubit gate pointed at its own wire', () => {
+  const r = parseAgentTurn(
+    '{"circuit":{"qubits":2,"gates":[{"gate":"cnot","qubit":0,"target":0}]}}',
+  );
+  assert.equal(r.control?.circuit, undefined);
+});
+
+t('rejects a qubit index that arrived as a string', () => {
+  // The single most likely malformation from an LLM, and the one that would
+  // otherwise sail through a `typeof value === 'object'` check.
+  const r = parseAgentTurn('{"circuit":{"qubits":2,"gates":[{"gate":"h","qubit":"0"}]}}');
+  assert.equal(r.control?.circuit, undefined);
+});
+
+t('rejects an invented gate name', () => {
+  const r = parseAgentTurn('{"circuit":{"qubits":2,"gates":[{"gate":"toffoli","qubit":0}]}}');
+  assert.equal(r.control?.circuit, undefined);
+});
+
+t('rejects more qubits than the simulator supports', () => {
+  const r = parseAgentTurn('{"circuit":{"qubits":9,"gates":[{"gate":"h","qubit":0}]}}');
+  assert.equal(r.control?.circuit, undefined);
+});
+
+t('rejects a gate list that is not a list', () => {
+  const r = parseAgentTurn('{"circuit":{"qubits":2,"gates":null}}');
+  assert.equal(r.control?.circuit, undefined);
+});
+
+t('an empty gate list is treated as no payload, not as a clear', () => {
+  const r = parseAgentTurn('{"circuit":{"qubits":2,"gates":[]}}');
+  assert.equal(r.control?.circuit, undefined, 'must not wipe the board mid-explanation');
+});
+
+t('one bad gate drops the whole circuit', () => {
+  // Partial reads are the dangerous case: a circuit missing its CNOT is not
+  // the circuit Athena is describing out loud.
+  const r = parseAgentTurn(
+    '{"circuit":{"qubits":2,"gates":[{"gate":"h","qubit":0},{"gate":"cnot","qubit":0,"target":7}]}}',
+  );
+  assert.equal(r.control?.circuit, undefined);
+});
+
+t('a circuit rides alongside the other control fields', () => {
+  const r = parseAgentTurn(
+    'Good question, Ana. {"to":"Ana","circuit":{"qubits":1,"gates":[{"gate":"h","qubit":0}]}}',
+  );
+  assert.equal(r.control?.to, 'Ana');
+  assert.equal(r.control?.circuit?.gates.length, 1);
+});
+
+t('keeps a rotation angle when one is given', () => {
+  const r = parseAgentTurn(
+    '{"circuit":{"qubits":1,"gates":[{"gate":"ry","qubit":0,"angle":1.5708}]}}',
+  );
+  assert.equal(r.control?.circuit?.gates[0]?.angle, 1.5708);
+});
+
 console.log(`\n${pass} passing`);

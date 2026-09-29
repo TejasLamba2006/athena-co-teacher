@@ -14,6 +14,8 @@
  * unbalanced apostrophe, which flips the parity and hides the JSON.
  */
 
+import type { QuantumCircuit, QuantumGate } from '@echosphere/shared-types';
+
 export interface QuizControl {
   topic: string;
   question: string;
@@ -64,6 +66,8 @@ export interface CoTeacherControl {
   board?: BoardControl;
   illustrate?: IllustrateControl;
   library?: LibraryControl;
+  /** A quantum circuit to put on the shared playground (PS 26140). */
+  circuit?: QuantumCircuit;
 }
 
 export interface ParsedTurn {
@@ -177,6 +181,68 @@ function readLibrary(value: unknown): LibraryControl | undefined {
 }
 
 /**
+ * A circuit emitted by the LLM.
+ *
+ * Validated field by field rather than trusted, because this is model output
+ * arriving on a path with no schema enforcement: a `qubit` of `"0"` or a
+ * `gates` of `null` would otherwise reach the simulator and throw inside a
+ * live turn. Anything malformed drops the whole circuit — a partially-read one
+ * would put a circuit on screen that is not the one Athena is describing,
+ * which is worse than showing nothing.
+ */
+function readCircuit(value: unknown): QuantumCircuit | undefined {
+  if (!value || typeof value !== 'object') return undefined;
+  const v = value as Record<string, unknown>;
+  const qubits = v.qubits;
+  if (typeof qubits !== 'number' || !Number.isInteger(qubits) || qubits < 1 || qubits > 4) {
+    return undefined;
+  }
+  if (!Array.isArray(v.gates)) return undefined;
+
+  const names: ReadonlySet<string> = new Set([
+    'h', 'x', 'y', 'z', 's', 'sdg', 't', 'tdg', 'rx', 'ry', 'rz', 'cnot', 'cz', 'swap',
+  ]);
+  const twoQubit: ReadonlySet<string> = new Set(['cnot', 'cz', 'swap']);
+
+  const gates: QuantumGate[] = [];
+  for (const raw of v.gates) {
+    if (!raw || typeof raw !== 'object') return undefined;
+    const g = raw as Record<string, unknown>;
+    const name = typeof g.gate === 'string' ? g.gate.toLowerCase() : '';
+    if (!names.has(name)) return undefined;
+
+    const qubit = g.qubit;
+    if (typeof qubit !== 'number' || !Number.isInteger(qubit) || qubit < 0 || qubit >= qubits) {
+      return undefined;
+    }
+
+    const gate: QuantumGate = { gate: name as QuantumGate['gate'], qubit };
+
+    if (twoQubit.has(name)) {
+      const target = g.target;
+      if (
+        typeof target !== 'number' ||
+        !Number.isInteger(target) ||
+        target < 0 ||
+        target >= qubits ||
+        target === qubit
+      ) {
+        return undefined;
+      }
+      gate.target = target;
+    }
+
+    if (typeof g.angle === 'number' && Number.isFinite(g.angle)) gate.angle = g.angle;
+    gates.push(gate);
+  }
+
+  // A circuit with no gates is the empty state, which the playground already
+  // shows — treating it as "no payload" avoids clearing a board mid-explanation.
+  if (gates.length === 0) return undefined;
+  return { qubits, gates };
+}
+
+/**
  * Splits an agent turn into its spoken part and its control payload.
  *
  * A malformed or partial object is dropped rather than thrown on: the cost of a
@@ -204,6 +270,9 @@ export function parseAgentTurn(text: string): ParsedTurn {
   if (illustrate) control.illustrate = illustrate;
   const library = readLibrary(raw.library);
   if (library) control.library = library;
+
+  const circuit = readCircuit(raw.circuit);
+  if (circuit) control.circuit = circuit;
 
   const spoken = (text.slice(0, span.start) + text.slice(span.end))
     .replace(/\s{2,}/g, ' ')
