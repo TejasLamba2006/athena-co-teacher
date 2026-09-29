@@ -64,6 +64,7 @@ import {
 import { RestraintMeter } from '@/components/meraki/RestraintMeter';
 import { SuppressedInterventionsPanel } from '@/components/meraki/SuppressedInterventionsPanel';
 import { MiroWorkspacePane } from '@/components/workspace/MiroWorkspacePane';
+import QuantumPlayground from '@/components/quantum/QuantumPlayground';
 import { AbsentStudentPacketModal } from '@/components/support/AbsentStudentPacketModal';
 import { CatchupBookingModal } from '@/components/support/CatchupBookingModal';
 import { LanguageSelector } from '@/components/support/LanguageSelector';
@@ -134,6 +135,26 @@ export default function TeacherDashboardPage() {
 
   const [showAbsentPacket, setShowAbsentPacket] = useState(false);
   const [showCatchupBooking, setShowCatchupBooking] = useState(false);
+  /**
+   * The walkthroughs the orchestrator offers. Fetched once rather than
+   * hardcoded here, so adding a lesson server-side needs no client change.
+   */
+  const [quantumLessons, setQuantumLessons] = useState<
+    Array<{ id: string; title: string; summary: string }>
+  >([]);
+  useEffect(() => {
+    let cancelled = false;
+    void orchestrator
+      .getQuantum(sessionId)
+      .then((r) => {
+        if (!cancelled) setQuantumLessons(r.lessons);
+      })
+      // A missing lesson list costs the picker, not the page.
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionId]);
   const [showLibraryStage, setShowLibraryStage] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
 
@@ -634,6 +655,20 @@ export default function TeacherDashboardPage() {
       label: t('tabQuizzes', lang),
       content: (
         <QuizCards quizzes={view.quizzes} canAnswer={false} onAnswer={() => undefined} language={lang} />
+      ),
+    },
+    {
+      id: 'quantum',
+      label: 'Quantum Lab',
+      content: (
+        <QuantumPlayground
+          sessionId={sessionId}
+          participantId={identity.participantId}
+          role="teacher"
+          quantum={view.quantum}
+          verdicts={view.quantumVerdicts}
+          lessons={quantumLessons}
+        />
       ),
     },
   ];

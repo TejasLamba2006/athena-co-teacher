@@ -131,6 +131,20 @@ export default function QuantumPlayground({
     }
   }, [sessionId, participantId, draft]);
 
+  const openFreePlay = useCallback(async () => {
+    setBusy(true);
+    setError(null);
+    const seed: QuantumCircuit = { qubits: 2, gates: [{ gate: 'h', qubit: 0 }] };
+    try {
+      await orchestratorClient.runQuantumCircuit(sessionId, participantId, seed);
+      setDraft(seed);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not open the playground');
+    } finally {
+      setBusy(false);
+    }
+  }, [sessionId, participantId]);
+
   const step = useCallback(
     async (delta: 1 | -1) => {
       setBusy(true);
@@ -160,9 +174,46 @@ export default function QuantumPlayground({
   );
 
   if (!quantum?.open) {
+    // The teacher gets the lesson picker here, not just a notice: starting a
+    // walkthrough is what opens the playground, so hiding the picker behind
+    // `open` would leave no way in.
     return (
-      <div className="flex h-full items-center justify-center p-6 text-center text-sm text-[var(--eco-cream-faint)]">
-        The quantum playground is closed. The teacher can open it from the tools bag.
+      <div className="flex h-full flex-col items-center justify-center gap-4 p-6 text-center">
+        <p className="text-sm text-[var(--eco-cream-faint)]">
+          {isTeacher
+            ? 'Pick a walkthrough to open the playground for the whole class.'
+            : 'The quantum playground is closed. Your teacher will open it.'}
+        </p>
+        {isTeacher && lessons.length > 0 && (
+          <div className="flex flex-wrap justify-center gap-2">
+            {lessons.map((l) => (
+              <button
+                key={l.id}
+                type="button"
+                onClick={() => void startLesson(l.id)}
+                disabled={busy}
+                title={l.summary}
+                className="rounded-md border border-[var(--eco-rule)] bg-[var(--eco-ink-sunken)] px-3 py-1.5 text-xs font-medium text-[var(--eco-cream)] transition hover:bg-[color-mix(in_srgb,var(--eco-cream)_8%,var(--eco-ink-sunken))] disabled:opacity-40"
+              >
+                {l.title}
+              </button>
+            ))}
+          </div>
+        )}
+        {isTeacher && (
+          <button
+            type="button"
+            // A single H on q0 rather than an empty list: the route rejects a
+            // gateless circuit, and an even superposition is the right first
+            // thing for a class to be looking at anyway.
+            onClick={() => void openFreePlay()}
+            disabled={busy}
+            className="rounded-md bg-[color-mix(in_srgb,var(--eco-athena)_20%,transparent)] px-3 py-1.5 text-xs font-semibold text-[var(--eco-athena)] ring-1 ring-[color-mix(in_srgb,var(--eco-athena)_40%,transparent)] transition hover:bg-[color-mix(in_srgb,var(--eco-athena)_30%,transparent)] disabled:opacity-40"
+          >
+            Open a free-play board
+          </button>
+        )}
+        {error && <p className="text-xs text-[var(--eco-amber)]">{error}</p>}
       </div>
     );
   }
