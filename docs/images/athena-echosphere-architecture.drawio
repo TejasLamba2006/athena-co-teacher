@@ -1,0 +1,239 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="drawio" version="31.1.8">
+  <diagram name="Architecture" id="arch">
+    <mxGraphModel dx="1400" dy="900" grid="1" gridSize="10" page="1" pageWidth="1600" pageHeight="1300">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="b_lane" value="Browsers &#8212; Next.js 16 / React 19 (apps/web)" style="swimlane;startSize=32;html=1;whiteSpace=wrap;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="40" y="40" width="580" height="640" as="geometry" />
+        </mxCell>
+        <mxCell id="b_teacher" value="Teacher tab &#8212; THE RELAY&#xa;control panel, lesson upload, gap dashboard,&#xa;restraint meter, inline report&#xa;(isRelay: the only tab that POSTs transcripts/state)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="b_lane">
+          <mxGeometry x="30" y="60" width="520" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="b_student1" value="Student view&#xa;transcript, roster, quiz cards + overlay" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="b_lane">
+          <mxGeometry x="30" y="210" width="520" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="b_student2" value="Student view (N per session)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="b_lane">
+          <mxGeometry x="30" y="340" width="520" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="b_libs" value="In every browser&#xa;agora-rtc-react hooks, one ref-counted RTM client,&#xa;AgoraVoiceAI toolkit, useClassroom = pure SSE mirror&#xa;(browsers never derive floor/policy/quiz state)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="b_lane">
+          <mxGeometry x="30" y="470" width="520" height="140" as="geometry" />
+        </mxCell>
+
+        <mxCell id="a_lane" value="Agora Cloud (owned by Agora, billed through the one project)" style="swimlane;startSize=32;html=1;whiteSpace=wrap;fillColor=#ffe6cc;strokeColor=#d79b00;fontStyle=1;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="760" y="40" width="560" height="640" as="geometry" />
+        </mxCell>
+        <mxCell id="a_rtc" value="RTC channel &#8212; live audio&#xa;teacher + students + Athena (fixed uid 123456)&#xa;human uids from a disjoint random range" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#d79b00;fontSize=11;" vertex="1" parent="a_lane">
+          <mxGeometry x="30" y="60" width="500" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="a_convo" value="ConvoAI engine = Athena&#xa;Deepgram nova-3 STT &#8594; gpt-4o-mini &#8594; MiniMax TTS&#xa;(Sarvam option for Indian languages)&#xa;answers every user turn on its own initiative&#xa;never asks the orchestrator first" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#d79b00;fontSize=11;" vertex="1" parent="a_lane">
+          <mxGeometry x="30" y="200" width="500" height="140" as="geometry" />
+        </mxCell>
+        <mxCell id="a_rtm" value="RTM channel&#xa;agent transcript + AGENT_STATE&#xa;(browser-only SDK, no server variant &#8594; this is why&#xa;the control path cannot ride RTM)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#d79b00;fontSize=11;" vertex="1" parent="a_lane">
+          <mxGeometry x="30" y="370" width="500" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="a_skip" value="MiniMax skipPatterns [5] strips {json} control objects before TTS, so Athena never speaks them" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;" vertex="1" parent="a_lane">
+          <mxGeometry x="30" y="510" width="500" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="o_lane" value="Orchestrator (apps/orchestrator) &#8212; Fastify, Node 22, long-lived single process = the brain (single authoritative writer; AgentSession handle must stay in memory)" style="swimlane;startSize=36;html=1;whiteSpace=wrap;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="40" y="760" width="1280" height="380" as="geometry" />
+        </mxCell>
+        <mxCell id="o_routes" value="REST routes&#xa;/join /transcript /agent-state /command&#xa;/quiz /prompt /agent/history" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;fontSize=11;" vertex="1" parent="o_lane">
+          <mxGeometry x="30" y="60" width="225" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="o_ctrl" value="classroomController&#xa;requestFloor(): the ONE door&#xa;that can make Athena talk" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;fontSize=11;" vertex="1" parent="o_lane">
+          <mxGeometry x="285" y="60" width="225" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="o_agent" value="agentLifecycle (agora-agents)&#xa;start / stop / interrupt /&#xa;think / update / getHistory" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;fontSize=11;" vertex="1" parent="o_lane">
+          <mxGeometry x="540" y="60" width="225" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="o_quiz" value="quizEngine&#xa;sets of 3, 15s deadline, answer&#xa;normalise, proficiency feedback" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;fontSize=11;" vertex="1" parent="o_lane">
+          <mxGeometry x="795" y="60" width="225" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="o_reg" value="SessionRegistry (in-memory)&#xa;ClassroomSession = source of truth&#xa;live AgentSession lives here" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;fontSize=11;" vertex="1" parent="o_lane">
+          <mxGeometry x="1050" y="60" width="225" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="o_bus" value="Event bus &#8594; SSE fan-out&#xa;publish / publishToTeachers / publishTo&#xa;gap data is teacher-only" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;fontSize=11;" vertex="1" parent="o_lane">
+          <mxGeometry x="30" y="220" width="225" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="o_floor" value="Floor machine + speak permit&#xa;decideSpeak() is pure, muted checked first&#xa;permit TTL 15s, after-the-fact interrupt" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;fontSize=11;" vertex="1" parent="o_lane">
+          <mxGeometry x="285" y="220" width="225" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="o_prompt" value="prompt.ts&#xa;whole classroom pushed into the system prompt&#xa;via update() &#8212; must repeat model every time" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;fontSize=11;" vertex="1" parent="o_lane">
+          <mxGeometry x="540" y="220" width="225" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="o_gaps" value="gapDetector&#xa;wrong answers + confused speech&#xa;+ {gap} &#8594; 2+ students = class-wide" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;fontSize=11;" vertex="1" parent="o_lane">
+          <mxGeometry x="795" y="220" width="225" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="o_lesson" value="LessonStore + report&#xa;chunks + hashed embeddings; deterministic report;&#xa;narrative via llm/complete.ts (key optional)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;fontSize=11;" vertex="1" parent="o_lane">
+          <mxGeometry x="1050" y="220" width="225" height="100" as="geometry" />
+        </mxCell>
+
+        <mxCell id="pg" value="Postgres&#xa;(optional)&#xa;flush ONCE at&#xa;session end" style="shape=cylinder3;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#333333;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1380" y="860" width="140" height="110" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e_audio1" value="mic audio both ways (teacher + every student)" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1565C0;strokeWidth=2;startArrow=classic;startFill=1;endArrow=classic;endFill=1;fontSize=10;labelBackgroundColor=#ffffff;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="b_lane" target="a_rtc">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_convo_rtc" value="TTS out + audio in" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1565C0;strokeWidth=2;startArrow=classic;startFill=1;endArrow=classic;endFill=1;fontSize=10;labelBackgroundColor=#ffffff;exitX=0.25;exitY=0;exitDx=0;exitDy=0;entryX=0.25;entryY=1;entryDx=0;entryDy=0;" edge="1" parent="1" source="a_convo" target="a_rtc">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_convo_rtm" value="transcript + AGENT_STATE" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1565C0;strokeWidth=2;endArrow=classic;endFill=1;fontSize=10;labelBackgroundColor=#ffffff;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="a_convo" target="a_rtm">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_rtm_b" value="live transcript + state to every browser" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1565C0;strokeWidth=2;endArrow=classic;endFill=1;fontSize=10;labelBackgroundColor=#ffffff;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.78;entryDx=0;entryDy=0;" edge="1" parent="1" source="a_rtm" target="b_lane">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e_post" value="HTTP POST /transcript, /agent-state, /command&#xa;(teacher tab relays; debounced 1.2s / max 2.5s)" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;strokeColor=#D79B00;strokeWidth=2;endArrow=classic;endFill=1;fontSize=10;labelBackgroundColor=#ffffff;exitX=0.35;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="b_lane" target="o_routes">
+          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="243" y="710" /><mxPoint x="182" y="710" /></Array></mxGeometry>
+        </mxCell>
+        <mxCell id="e_sse" value="SSE GET /events: room-state, transcript,&#xa;floor-changed, quiz, gaps, agent-blocked" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;strokeColor=#D79B00;strokeWidth=2;endArrow=classic;endFill=1;fontSize=10;labelBackgroundColor=#ffffff;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.82;entryDx=0;entryDy=0;" edge="1" parent="1" source="o_bus" target="b_lane">
+          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="10" y="1080" /><mxPoint x="10" y="565" /></Array></mxGeometry>
+        </mxCell>
+        <mxCell id="e_sdk" value="agora-agents SDK: start / interrupt / think / update / getHistory" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;strokeColor=#9673A6;strokeWidth=2;startArrow=classic;startFill=1;endArrow=classic;endFill=1;fontSize=10;labelBackgroundColor=#ffffff;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="o_agent" target="a_convo">
+          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="692" y="710" /><mxPoint x="1345" y="710" /><mxPoint x="1345" y="310" /></Array></mxGeometry>
+        </mxCell>
+        <mxCell id="e_pg" value="fire-and-forget" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;strokeColor=#666666;endArrow=classic;endFill=1;fontSize=10;labelBackgroundColor=#ffffff;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.35;entryDx=0;entryDy=0;" edge="1" parent="1" source="o_reg" target="pg">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="i1" value="transcript-in / commands" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#82b366;strokeWidth=1;endArrow=classic;fontSize=9;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="o_routes" target="o_ctrl">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="i2" value="may speak?" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#82b366;strokeWidth=1;endArrow=classic;fontSize=9;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" edge="1" parent="1" source="o_floor" target="o_ctrl">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="i3" value="think() / interrupt()" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#82b366;strokeWidth=1;endArrow=classic;fontSize=9;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="o_ctrl" target="o_agent">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="i4" value="quiz payload via getHistory()" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#82b366;strokeWidth=1;endArrow=classic;fontSize=9;exitX=1;exitY=0.35;exitDx=0;exitDy=0;entryX=0;entryY=0.35;entryDx=0;entryDy=0;" edge="1" parent="1" source="o_agent" target="o_quiz">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="i5" value="update() re-push" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#82b366;strokeWidth=1;endArrow=classic;fontSize=9;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" edge="1" parent="1" source="o_prompt" target="o_agent">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="i6" value="fan-out" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#82b366;strokeWidth=1;endArrow=classic;fontSize=9;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" edge="1" parent="1" source="o_bus" target="o_routes">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="i7" value="gaps" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#82b366;strokeWidth=1;endArrow=classic;fontSize=9;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" edge="1" parent="1" source="o_gaps" target="o_quiz">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="legend" value="Legend" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#666666;verticalAlign=top;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="1170" width="320" height="126" as="geometry" />
+        </mxCell>
+        <mxCell id="leg1" value="" style="rounded=0;html=1;fillColor=none;strokeColor=#1565C0;strokeWidth=2;" vertex="1" parent="legend">
+          <mxGeometry x="10" y="30" width="30" height="16" as="geometry" />
+        </mxCell>
+        <mxCell id="leg1t" value="Audio path (Agora-owned)" style="text;html=1;align=left;verticalAlign=middle;fontSize=11;" vertex="1" parent="legend">
+          <mxGeometry x="50" y="28" width="250" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="leg2" value="" style="rounded=0;html=1;fillColor=none;strokeColor=#D79B00;strokeWidth=2;dashed=1;" vertex="1" parent="legend">
+          <mxGeometry x="10" y="54" width="30" height="16" as="geometry" />
+        </mxCell>
+        <mxCell id="leg2t" value="Control path (orchestrator-owned)" style="text;html=1;align=left;verticalAlign=middle;fontSize=11;" vertex="1" parent="legend">
+          <mxGeometry x="50" y="52" width="250" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="leg3" value="" style="rounded=0;html=1;fillColor=none;strokeColor=#9673A6;strokeWidth=2;dashed=1;" vertex="1" parent="legend">
+          <mxGeometry x="10" y="78" width="30" height="16" as="geometry" />
+        </mxCell>
+        <mxCell id="leg3t" value="Agent SDK (App Credentials)" style="text;html=1;align=left;verticalAlign=middle;fontSize=11;" vertex="1" parent="legend">
+          <mxGeometry x="50" y="76" width="250" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="leg4" value="" style="rounded=0;html=1;fillColor=none;strokeColor=#666666;dashed=1;" vertex="1" parent="legend">
+          <mxGeometry x="10" y="102" width="30" height="16" as="geometry" />
+        </mxCell>
+        <mxCell id="leg4t" value="Optional persistence" style="text;html=1;align=left;verticalAlign=middle;fontSize=11;" vertex="1" parent="legend">
+          <mxGeometry x="50" y="100" width="250" height="20" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram name="Runtime-Flows" id="flows">
+    <mxGraphModel dx="1400" dy="900" grid="1" gridSize="10" page="1" pageWidth="1200" pageHeight="1400">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="f_title" value="Transcript pipeline (teacher tab is the only relay)" style="text;html=1;fontSize=14;fontStyle=1;align=left;" vertex="1" parent="1">
+          <mxGeometry x="40" y="30" width="380" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="f1" value="ConvoAI re-emits cumulative turns over RTM (same turn_id grows)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="40" y="80" width="280" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="f2" value="Relay holds a turn until text stops changing for 1.2s; force-publishes at 2.5s" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="40" y="170" width="280" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="f3" value="Speaker attribution: 150ms volume poll across all tracks; loudest wins, fixed at first sight, confidence = best/(best+second)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="40" y="260" width="280" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="f4" value="POST /transcript to orchestrator" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="40" y="360" width="280" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="f5" value="Dedupe by (uid,turnId); a grown re-emit replaces the stored turn in place" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="40" y="440" width="280" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="f6" value="stripSelfEcho: subtract anything Athena said in the last 10s, keep the remainder" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="40" y="530" width="280" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="f7" value="Append + floor transition + wake-word check + gap check ([classroom:system] text dropped)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="40" y="620" width="280" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="f8" value="Broadcast echosphere:transcript to every browser via SSE" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="40" y="710" width="280" height="50" as="geometry" />
+        </mxCell>
+
+        <mxCell id="g_title" value="Speak-permit enforcement loop (ConvoAI never asks permission first)" style="text;html=1;fontSize=14;fontStyle=1;align=left;" vertex="1" parent="1">
+          <mxGeometry x="440" y="30" width="520" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="g1" value="Browser relays AGENT_STATE: thinking / speaking" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="480" y="80" width="240" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="g2" value="authorizedTurnInProgress?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="470" y="170" width="260" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="g3" value="Let the turn run (authorization covers the whole turn)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="790" y="185" width="220" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="g4" value="Muted OR no valid permit (TTL 15s)?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="470" y="310" width="260" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="g5" value="interruptAgent() + clear permit + meter held-back + tell teacher panel (agent-blocked)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="790" y="325" width="220" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="g6" value="Authorize turn, consume permit, meter speaking" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="480" y="450" width="240" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="g7" value="State listening / idle / silent &#8594; turn ends (flag cleared)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="480" y="540" width="240" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="g8" value="Explicit revocation only: MUTE_AGENT, teacher barge-in, floor closed &#8594; direct interruptAgent() (never waits for a poll)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="480" y="630" width="240" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="h1" value="Quiz payloads: the relay never sees the {json} (skipPatterns strips braces from RTM too) &#8594; pollForPayloadTurn reads agentSession.getHistory() and waits for a NEW assistant turn with a balanced { ... }" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="440" y="770" width="560" height="80" as="geometry" />
+        </mxCell>
+
+        <mxCell id="fe1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#666666;endArrow=classic;" edge="1" parent="1" source="f1" target="f2"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="fe2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#666666;endArrow=classic;" edge="1" parent="1" source="f2" target="f3"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="fe3" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#666666;endArrow=classic;" edge="1" parent="1" source="f3" target="f4"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="fe4" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#666666;endArrow=classic;" edge="1" parent="1" source="f4" target="f5"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="fe5" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#666666;endArrow=classic;" edge="1" parent="1" source="f5" target="f6"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="fe6" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#666666;endArrow=classic;" edge="1" parent="1" source="f6" target="f7"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="fe7" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#666666;endArrow=classic;" edge="1" parent="1" source="f7" target="f8"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="ge1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#666666;endArrow=classic;" edge="1" parent="1" source="g1" target="g2"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="ge2" value="yes" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#82b366;endArrow=classic;fontSize=10;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="g2" target="g3"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="ge3" value="no" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#666666;endArrow=classic;fontSize=10;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="g2" target="g4"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="ge4" value="yes" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#b85450;endArrow=classic;fontSize=10;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="g4" target="g5"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="ge5" value="no" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#82b366;endArrow=classic;fontSize=10;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="g4" target="g6"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="ge6" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#666666;endArrow=classic;" edge="1" parent="1" source="g6" target="g7"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="ge7" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#b85450;dashed=1;endArrow=classic;" edge="1" parent="1" source="g7" target="g8"><mxGeometry relative="1" as="geometry" /></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
