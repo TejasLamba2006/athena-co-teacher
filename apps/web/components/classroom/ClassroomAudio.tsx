@@ -81,6 +81,13 @@ export interface ClassroomAudioProps {
    */
   onMicError?: (message: string) => void;
   /**
+   * The agent's live remote audio `MediaStreamTrack` (null when absent).
+   * Bridged up to the page so ParticipantGrid can feed it to the TalkingHead
+   * avatar's jaw tap — ClassroomAudio is the only component that
+   * sees Agora's remote tracks, and the grid is its sibling, not its child.
+   */
+  onAgentAudioTrackChange?: (track: MediaStreamTrack | null) => void;
+  /**
    * Fires on the relay client when this tab is hidden or shown again.
    *
    * Only meaningful when `isRelay` — see the effect below for why a hidden tab
@@ -234,6 +241,7 @@ export function ClassroomAudio({
   onToolkitError,
   onMicError,
   onRelayHiddenChange,
+  onAgentAudioTrackChange,
 }: ClassroomAudioProps) {
   const client = useRTCClient();
   const remoteUsers = useRemoteUsers();
@@ -267,6 +275,21 @@ export function ClassroomAudio({
   const { localMicrophoneTrack, error: micTrackError } =
     useLocalMicrophoneTrack(isReady);
   usePublish(localMicrophoneTrack ? [localMicrophoneTrack] : []);
+
+  // Expose the agent's underlying MediaStreamTrack for the TalkingHead
+  // avatar's audio tap. `useRemoteAudioTracks` populates `user.audioTrack`
+  // asynchronously and only returns a fresh `audioTracks` array when that
+  // lands — `remoteUsers` alone never changes identity at subscribe time, so
+  // both are deps. Identity guard keeps the callback from firing per tick.
+  const lastAgentTrackRef = useRef<MediaStreamTrack | null>(null);
+  useEffect(() => {
+    const agentUser = remoteUsers.find((user) => String(user.uid) === agentUid);
+    const raw = agentUser?.audioTrack?.getMediaStreamTrack() ?? null;
+    if (raw !== lastAgentTrackRef.current) {
+      lastAgentTrackRef.current = raw;
+      onAgentAudioTrackChange?.(raw);
+    }
+  }, [remoteUsers, audioTracks, agentUid, onAgentAudioTrackChange]);
 
   // Mute via setEnabled only — unpublishing here would fight usePublish.
   useEffect(() => {

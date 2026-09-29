@@ -37,6 +37,13 @@ import '@excalidraw/excalidraw/index.css';
 /** Roughly ten posts a second: smooth to watch, ~40x less traffic than raw. */
 const SYNC_INTERVAL_MS = 100;
 
+/**
+ * Consecutive failed sends before giving up on the batch. A blip retries; a
+ * server that rejects ~1.5 seconds of sends straight is gone, and the retry
+ * loop stops hitting it.
+ */
+const MAX_SEND_FAILURES = 15;
+
 export interface ExcalidrawBoardProps {
   /** The scene as the orchestrator currently holds it. */
   scene: BoardElement[];
@@ -44,7 +51,12 @@ export interface ExcalidrawBoardProps {
   files: BoardFile[];
   /** False for students, who watch rather than draw. */
   canDraw: boolean;
-  onSceneChange: (elements: BoardElement[], files: BoardFile[]) => void;
+  /**
+   * Sends the batch and resolves only once the server has it. Rejecting puts
+   * the batch back in line for the next tick — see the flush loop. A board may
+   * return nothing (a viewer's sink never sends).
+   */
+  onSceneChange: (elements: BoardElement[], files: BoardFile[]) => void | Promise<void>;
 }
 
 /**
@@ -190,10 +202,20 @@ export function ExcalidrawBoard({ scene, files, canDraw, onSceneChange }: Excali
     onSceneChangeRef.current = onSceneChange;
   }, [onSceneChange]);
 
+  /**
+   * A POST is outstanding right now. One send at a time: the retry below owns
+   * a failed batch, and a second request racing an unresolved first would only
+   * decide which one the server happened to merge last.
+   */
+  const inFlight = useRef(false);
+  /** Consecutive failed sends; see MAX_SEND_FAILURES. */
+  const sendFailures = useRef(0);
+
   // Flush on an interval rather than per change: a single stroke is hundreds of
   // change events, and only the latest state of each element matters.
   useEffect(() => {
     timer.current = setInterval(() => {
+      if (inFlight.current) return;
       const files = unsentFiles(
         localElements.current,
         localFiles.current,
@@ -202,10 +224,39 @@ export function ExcalidrawBoard({ scene, files, canDraw, onSceneChange }: Excali
       if (pending.current.size === 0 && files.length === 0) return;
       const batch = [...pending.current.values()];
       pending.current = new Map();
-      // Recorded as sent only once it actually goes out.
-      for (const el of batch) lastSentVersions.current.set(el.id, el.version);
-      for (const file of files) sentFileIds.current.add(file.id);
-      onSceneChangeRef.current(batch, files);
+      inFlight.current = true;
+      // Marked sent only once the server has it. The old code marked the
+      // version sent the moment the POST left and swallowed the rejection,
+      // so one dropped request stranded the last stroke of every element it
+      // carried: the local canvas kept drawing over a version the room never
+      // received, and nothing ever retried — the board desynced for good.
+      Promise.resolve(onSceneChangeRef.current(batch, files))
+        .then(() => {
+          for (const el of batch) lastSentVersions.current.set(el.id, el.version);
+          for (const file of files) sentFileIds.current.add(file.id);
+          sendFailures.current = 0;
+        })
+        .catch(() => {
+          if (++sendFailures.current >= MAX_SEND_FAILURES) {
+            // The server is refusing this session, not blipping. Mark the
+            // batch sent anyway to stop the loop hammering it; a real
+            // reconnect rebuilds truth from room-state regardless.
+            for (const el of batch) lastSentVersions.current.set(el.id, el.version);
+            for (const file of files) sentFileIds.current.add(file.id);
+            pending.current.clear();
+            sendFailures.current = 0;
+          } else {
+            // Back in line for the next tick — unless a newer version of the
+            // element already queued up behind the failed send, in which case
+            // the fresh one supersedes the retry.
+            for (const el of batch) {
+              if (!pending.current.has(el.id)) pending.current.set(el.id, el);
+            }
+          }
+        })
+        .finally(() => {
+          inFlight.current = false;
+        });
     }, SYNC_INTERVAL_MS);
     return () => {
       if (timer.current) clearInterval(timer.current);

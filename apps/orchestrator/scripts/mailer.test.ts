@@ -58,14 +58,18 @@ const r1 = await dispatchAbsentPacket(session, {
 check('falls back to SMTP when Resend fails', r1.emailSent === true, `provider=${r1.emailProvider} err=${r1.emailError}`);
 check('delivered to the typed recipient', received.at(-1)?.to.join() === 'typed-parent@example.test', received.at(-1)?.to.join());
 
-// 2. No recipientEmail → falls back to the hardcoded parent address.
-await dispatchAbsentPacket(session, {
+// 2. No recipientEmail → the send is refused outright. There used to be a
+// hardcoded fallback parent address, which meant a lesson packet could reach a
+// stranger; it is gone, and so is any silent stand-in for it.
+const before = received.length;
+const r2 = await dispatchAbsentPacket(session, {
   sessionId: session.sessionId,
   channel: 'email',
   includeQuiz: true,
   includeTranscript: true,
 });
-check('uses fallback parent when no email typed', received.at(-1)?.to.join() === 'himanihassija@gmail.com', received.at(-1)?.to.join());
+check('refuses to email without a recipient', r2.emailSent === false && !!r2.emailError, r2.emailError);
+check('no mail leaves without a recipient', received.length === before, String(received.length));
 
 // 3. Both providers down → ok:false with a real error, WhatsApp link intact.
 server.close();
@@ -80,7 +84,10 @@ const r3 = await dispatchAbsentPacket(session, {
 });
 check('reports failure instead of silent success', r3.emailSent === false && !!r3.emailError, r3.emailError?.slice(0, 120));
 check('whatsapp link still returned on email failure', r3.whatsappDeepLink.includes('919999999999'));
-check('email count is exactly 2 (no phantom sends)', received.length === 2, String(received.length));
+check('email count is exactly 1 (no phantom sends)', received.length === 1, String(received.length));
 
 console.log(failures === 0 ? '\nALL PASS' : `\n${failures} FAILED`);
-process.exit(failures === 0 ? 0 : 1);
+// exitCode, not process.exit(): exiting while the just-closed test server has
+// handles still mid-close aborts libuv on Windows, and the non-zero exit kills
+// the rest of the `pnpm test` chain even when every check passed.
+process.exitCode = failures === 0 ? 0 : 1;

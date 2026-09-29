@@ -367,7 +367,18 @@ export async function startAgent(session: ClassroomSession): Promise<string> {
         }),
       )
       .withTts(
-        new SarvamTTS({
+        // agora-agents@2.6.1's SarvamTTS never sends a `model`, so Agora's
+        // engine falls back to its deprecated `bulbul:v2` default and the
+        // transcription start fails with HTTP 400. The params type carries an
+        // index signature, so injecting `model: bulbul:v3` here survives
+        // serialization. Drop the subclass once the SDK exposes the option.
+        new (class extends SarvamTTS {
+          override toConfig() {
+            const cfg = super.toConfig();
+            (cfg.params as Record<string, unknown>).model = 'bulbul:v3';
+            return cfg;
+          }
+        })({
           key: config.sarvamApiKey,
           speaker: config.sarvamSpeaker,
           targetLanguageCode: (sttLang === 'en' ? 'en-IN' : sarvamLang) as any,

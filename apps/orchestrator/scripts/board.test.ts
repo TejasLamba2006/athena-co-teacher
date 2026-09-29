@@ -126,6 +126,26 @@ t('clearing the board drops its images too, so the memory is actually freed', ()
   assert.deepEqual(s.whiteboard.files, []);
 });
 
+t('a straggler post after a clear cannot resurrect the wiped scene', () => {
+  const s = createSession('t');
+  mergeSceneElements(s, [el('a', 1), el('b', 1)]);
+  mergeSceneFiles(s, [file('f1')]);
+  applyBoardCommand(s, { action: 'clear', source: 'teacher' });
+  // The client's periodic POST fires with the pre-clear batch still in flight.
+  mergeSceneElements(s, [el('a', 1), el('b', 1)]);
+  const added = mergeSceneFiles(s, [file('f1')]);
+  assert.deepEqual(s.whiteboard.scene, [], 'cleared elements must stay cleared');
+  assert.deepEqual(added, [], 'cleared files must not come back');
+});
+
+t('a clear only tombstones old ids — fresh drawing still lands', () => {
+  const s = createSession('t');
+  mergeSceneElements(s, [el('a', 1)]);
+  applyBoardCommand(s, { action: 'clear', source: 'teacher' });
+  mergeSceneElements(s, [el('new-stroke', 1)]);
+  assert.deepEqual(s.whiteboard.scene.map((e) => e.id), ['new-stroke']);
+});
+
 t('the public state carries the files, so a late joiner gets the pictures', () => {
   const s = createSession('t');
   mergeSceneElements(s, [el('img', 1, { type: 'image', fileId: 'f1' })]);

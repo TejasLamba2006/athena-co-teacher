@@ -25,6 +25,7 @@ import {
   answersFor,
   recordQuizFromControl,
 } from './../src/quiz/quizEngine.ts';
+import { roomState } from './../src/routes/classroom.ts';
 import { subscribe } from './../src/state/eventBus.ts';
 import {
   AGENT_UID,
@@ -343,6 +344,57 @@ await t('a set whose quiz arrived twice still advances past question 1', async (
     session.activeQuizSet.quizIds.includes(closing.quizId),
     'maybeAdvanceQuizSet bails unless the closing quiz is listed in the set',
   );
+});
+
+/**
+ * The #8 bug: RoomState carried no quizzes, and the SSE bus replays nothing,
+ * so reloading mid-quiz landed a student on no card at all until the countdown
+ * died. roomState must now restore every quiz — open ones WITHOUT the key
+ * (that is the whole leak question), closed ones WITH it, since `quiz-closed`
+ * already broadcast that answer to the room.
+ */
+await t('room-state restores an open quiz with no answer key', async () => {
+  const session = createSession('t');
+  addParticipant(session, { displayName: 'Ana', role: 'student' });
+
+  const quiz = recordQuizFromControl(session, { ...QUIZ_CONTROL }, 'teacher', []);
+
+  const state = roomState(session);
+  assert.equal(state.quizzes?.length, 1, 'the open quiz must ride the snapshot');
+  const restored = state.quizzes![0]!;
+  assert.equal(restored.quizId, quiz.quizId);
+  assert.equal(restored.question, QUIZ_CONTROL.question);
+  assert.equal(restored.deadline, quiz.deadline, 'the countdown needs the real deadline');
+  assert.equal('correctAnswer' in restored, false, 'an open quiz must not carry the key');
+  assert.equal('closedAt' in restored, false);
+});
+
+await t('room-state restores a closed quiz with the answer the room already heard', async () => {
+  const session = createSession('t');
+  const ana = addParticipant(session, { displayName: 'Ana', role: 'student' });
+
+  const quiz = recordQuizFromControl(session, { ...QUIZ_CONTROL }, 'teacher', []);
+  submitQuizAnswer(session, quiz.quizId, ana.participantId, QUIZ_CONTROL.options[1]!, 'ui');
+
+  const restored = roomState(session).quizzes![0]!;
+  assert.ok(restored.closedAt, 'last-target-answered must close it');
+  assert.equal(restored.correctAnswer, quiz.correctAnswer);
+});
+
+await t('room-state quizzes come back oldest first, the way the cards stacked', async () => {
+  const session = createSession('t');
+  addParticipant(session, { displayName: 'Ana', role: 'student' });
+
+  const first = recordQuizFromControl(session, { ...QUIZ_CONTROL }, 'teacher', []);
+  const second = recordQuizFromControl(
+    session,
+    { ...QUIZ_CONTROL, question: 'And the second step?' },
+    'teacher',
+    [],
+  );
+
+  const ids = roomState(session).quizzes!.map((q) => q.quizId);
+  assert.deepEqual(ids, [first.quizId, second.quizId]);
 });
 
 console.log(`\n${pass} passing`);

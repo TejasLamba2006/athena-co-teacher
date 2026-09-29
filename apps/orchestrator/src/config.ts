@@ -95,7 +95,9 @@ export const config = {
 
   /* Sarvam AI configuration */
   sarvamApiKey: process.env.SARVAM_API_KEY ?? 'mock_sarvam_api_key',
-  sarvamSpeaker: process.env.SARVAM_SPEAKER ?? 'anushka',
+  // bulbul:v3 replaced the v2 voice roster entirely; 'anushka' is v2-only.
+  // Override with SARVAM_SPEAKER (v3 names: aditya, ritu, kavya, simran, ...).
+  sarvamSpeaker: process.env.SARVAM_SPEAKER ?? 'simran',
   sarvamTargetLanguageCode: process.env.SARVAM_TARGET_LANGUAGE_CODE ?? 'hi-IN',
 
   /* Direct LLM Provider Keys */

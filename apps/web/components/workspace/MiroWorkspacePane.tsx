@@ -107,7 +107,7 @@ export function MiroWorkspacePane({
   const handleExplain = async (noteId: string) => {
     setExplainingId(noteId);
     try {
-      await orchestratorClient.explainStickyNote(sessionId, noteId);
+      await orchestratorClient.explainStickyNote(sessionId, noteId, participantId);
       onRefresh?.();
     } catch (err) {
       console.error('Explain failed', err);
@@ -279,16 +279,19 @@ export function MiroWorkspacePane({
                           <span>{note.votes || 0}</span>
                         </button>
 
-                        {/* Ask Athena to Explain Button */}
-                        <button
-                          type="button"
-                          onClick={() => handleExplain(note.id)}
-                          disabled={explainingId === note.id}
-                          className="flex items-center gap-1 rounded-md bg-[color-mix(in_srgb,var(--eco-athena)_20%,transparent)] px-2 py-0.5 text-xs font-medium text-[var(--eco-athena)] ring-1 ring-purple-400/40 hover:bg-[color-mix(in_srgb,var(--eco-athena)_30%,transparent)] transition disabled:opacity-50"
-                          title="Ask Athena to speak this doubt out loud"
-                        >
-                          {explainingId === note.id ? 'Addressing...' : 'Explain'}
-                        </button>
+                        {/* Ask Athena to Explain Button (teacher only — the
+                            route refuses anyone else) */}
+                        {role === 'teacher' && (
+                          <button
+                            type="button"
+                            onClick={() => handleExplain(note.id)}
+                            disabled={explainingId === note.id}
+                            className="flex items-center gap-1 rounded-md bg-[color-mix(in_srgb,var(--eco-athena)_20%,transparent)] px-2 py-0.5 text-xs font-medium text-[var(--eco-athena)] ring-1 ring-purple-400/40 hover:bg-[color-mix(in_srgb,var(--eco-athena)_30%,transparent)] transition disabled:opacity-50"
+                            title="Ask Athena to speak this doubt out loud"
+                          >
+                            {explainingId === note.id ? 'Addressing...' : 'Explain'}
+                          </button>
+                        )}
 
                         {/* Resolve Button (Teacher or Author) */}
                         {role === 'teacher' && (

@@ -73,7 +73,9 @@ export function AbsentStudentPacketModal({
       });
       return;
     }
-    if (!recipientEmail && channel === 'email') {
+    // 'both' included — the server used to silently fall back to a hardcoded
+    // address for it; now it refuses, so refuse here first.
+    if (!recipientEmail && channel !== 'whatsapp') {
       setDispatchStatus({
         success: false,
         channel,

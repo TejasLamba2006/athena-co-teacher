@@ -140,6 +140,8 @@ export default function TeacherDashboardPage() {
   const [identity, setIdentity] = useState<StoredIdentity | null>(null);
   const [micEnabled, setMicEnabled] = useState(true);
   const [speakingUid, setSpeakingUid] = useState<string | null>(null);
+  /** Athena's Agora audio track, bridged ClassroomAudio -> ParticipantGrid. */
+  const [agentAudioTrack, setAgentAudioTrack] = useState<MediaStreamTrack | null>(null);
   const [transcriptionLive, setTranscriptionLive] = useState(false);
   const [transcriptionError, setTranscriptionError] = useState<string | null>(null);
   const [micError, setMicError] = useState<string | null>(null);
@@ -876,7 +878,7 @@ export default function TeacherDashboardPage() {
         .map((gap) => (
           <article
             key={gap.gapId}
-            className="eco-panel flex flex-col justify-between gap-3 border-l-4 p-4 sm:flex-row sm:items-center"
+            className="eco-panel flex flex-col justify-between gap-3 p-4 sm:flex-row sm:items-center"
             style={{
               borderColor: 'var(--eco-amber)',
               background: 'var(--eco-amber-dim)',
@@ -944,6 +946,7 @@ export default function TeacherDashboardPage() {
                 onMicError={setMicError}
                 onSpeakingChange={setSpeakingUid}
                 onRelayHiddenChange={setRelayHidden}
+                onAgentAudioTrackChange={setAgentAudioTrack}
               />
 
               {/* Stage + optional pinned transcript sidebar, side by side. */}
@@ -993,7 +996,6 @@ export default function TeacherDashboardPage() {
                     />
                   ) : (
                     <ParticipantGrid
-                      sessionId={sessionId}
                       participants={view.participants}
                       agentPresent={Boolean(view.room?.agentId)}
                       agentUid={identity.agentUid}
@@ -1001,6 +1003,7 @@ export default function TeacherDashboardPage() {
                       selfUid={identity.uid}
                       selfMicEnabled={micEnabled}
                       raisedHands={view.raisedHands}
+                      agentAudioTrack={agentAudioTrack}
                       agentMuted={agentMuted}
                       onToggleAgentMute={toggleAgentMute}
                       agentBusy={busy}

@@ -149,14 +149,6 @@ Format response as JSON:
 import type { AbsentDispatchPayload, AbsentDispatchResult, DispatchChannel } from '@echosphere/shared-types';
 import { randomUUID } from 'node:crypto';
 
-/**
- * Fallback parent recipients, used only when the caller supplied no
- * `recipientEmail`. The address typed into the dispatch modal takes precedence.
- */
-const FALLBACK_PARENT_RECIPIENTS = [
-  'himanihassija@gmail.com',
-];
-
 export async function dispatchAbsentPacket(
   session: ClassroomSession,
   payload: AbsentDispatchPayload,
@@ -199,8 +191,7 @@ https://echosphere.classroom/session/${session.sessionId}/catchup`;
 
   // 2. Compose the parent notification email — short, hardcoded message per
   // current requirements, distinct from the richer student-facing digest
-  // above. Sent to payload.recipientEmail, or FALLBACK_PARENT_RECIPIENTS when
-  // the caller supplied none.
+  // above. Sent to payload.recipientEmail; the email channel requires one.
   const emailSubject = `Your ward missed today's class — ${session.title}`;
   const emailBodyHtml = `
 <!DOCTYPE html>
@@ -226,22 +217,26 @@ https://echosphere.classroom/session/${session.sessionId}/catchup`;
   let emailError: string | undefined;
 
   if (channels.includes('email')) {
-    const recipients = payload.recipientEmail?.trim()
-      ? [payload.recipientEmail.trim()]
-      : FALLBACK_PARENT_RECIPIENTS;
-
-    const result = await sendMail({
-      to: recipients,
-      subject: emailSubject,
-      html: emailBodyHtml,
-    });
-
-    emailSent = result.ok;
-    emailProvider = result.provider;
-    emailError = result.error;
-
-    if (!result.ok) {
-      console.error('[absentPacket] Email dispatch failed:', result.error);
+    // No silent fallback address: a lesson packet going to the wrong parent is
+    // a disclosure, not a glitch. The dispatch modal's address is required for
+    // the email channel, and its absence is reported like any other failure.
+    const recipient = payload.recipientEmail?.trim();
+    if (!recipient) {
+      emailSent = false;
+      emailError = 'No recipient email supplied.';
+      console.warn('[absentPacket] Email channel requested without a recipient address.');
+    } else {
+      const result = await sendMail({
+        to: [recipient],
+        subject: emailSubject,
+        html: emailBodyHtml,
+      });
+      emailSent = result.ok;
+      emailProvider = result.provider;
+      emailError = result.error;
+      if (!result.ok) {
+        console.error('[absentPacket] Email dispatch failed:', result.error);
+      }
     }
   }
 

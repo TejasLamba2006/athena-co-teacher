@@ -49,6 +49,15 @@ export function applyBoardCommand(
     session.whiteboard.open = false;
   } else if (full.action === 'clear') {
     session.whiteboard.cards = [];
+    // Tombstone before dropping: a client's in-flight scene POST would
+    // otherwise re-add every element the merge no longer sees (see
+    // sessionRegistry's `cleared`). New work gets fresh ids and passes.
+    for (const el of session.whiteboard.scene) {
+      session.whiteboard.cleared.elements.add(el.id);
+    }
+    for (const f of session.whiteboard.files) {
+      session.whiteboard.cleared.files.add(f.id);
+    }
     session.whiteboard.scene = [];
     session.whiteboard.files = [];
     session.whiteboard.open = true;
@@ -116,6 +125,7 @@ export function mergeSceneElements(
     session.whiteboard.scene.map((el) => [el.id, el]),
   );
   for (const el of incoming) {
+    if (session.whiteboard.cleared.elements.has(el.id)) continue;
     const existing = byId.get(el.id);
     if (!existing || el.version >= existing.version) byId.set(el.id, el);
   }
@@ -150,6 +160,7 @@ export function mergeSceneFiles(
 
   for (const file of incoming) {
     if (known.has(file.id)) continue;
+    if (session.whiteboard.cleared.files.has(file.id)) continue;
     if (file.dataURL.length > MAX_FILE_BYTES) continue;
     if (total + file.dataURL.length > MAX_TOTAL_FILE_BYTES) break;
     known.add(file.id);

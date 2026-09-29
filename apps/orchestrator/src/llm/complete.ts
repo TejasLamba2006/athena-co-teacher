@@ -154,6 +154,17 @@ const RATE_LIMIT_RETRIES = 2;
 const RATE_LIMIT_MAX_WAIT_MS = 8_000;
 
 /**
+ * Ceiling on a single provider request.
+ *
+ * Without one a hung TCP connection stalls forever — and the whole point of
+ * the provider chain (fall through to the next key) never happens, because
+ * control never returns to the loop. Thirty seconds covers the slowest
+ * reasoning-model completion seen in practice with room to spare, and any
+ * abort falls through exactly like the connection error it replaces.
+ */
+const PROVIDER_REQUEST_TIMEOUT_MS = 30_000;
+
+/**
  * How long to wait before retrying a 429, or `null` if it should not be
  * retried at all.
  *
@@ -249,6 +260,7 @@ async function executeProvider(
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(bodyPayload),
+        signal: AbortSignal.timeout(PROVIDER_REQUEST_TIMEOUT_MS),
       });
 
       if (!response.ok) {
@@ -294,6 +306,7 @@ async function executeProvider(
           temperature: options.temperature ?? 0.4,
           max_tokens: options.maxTokens ?? 700,
         }),
+        signal: AbortSignal.timeout(PROVIDER_REQUEST_TIMEOUT_MS),
       });
 
       if (!response.ok) {
@@ -335,6 +348,7 @@ async function executeProvider(
           temperature: options.temperature ?? 0.4,
           max_tokens: maxTokens,
         }),
+        signal: AbortSignal.timeout(PROVIDER_REQUEST_TIMEOUT_MS),
       });
 
     let response = await send();

@@ -35,6 +35,7 @@
 import assert from 'node:assert/strict';
 import {
   applyControl,
+  applyTeacherCommand,
   clearSpeakPermit,
   grantSpeakPermit,
   handleAgentState,
@@ -957,6 +958,72 @@ await t('board control lands however the turn began', async () => {
   assert.equal(session.whiteboard.open, true);
   applyControl(session, { board: { action: 'hide' } });
   assert.equal(session.whiteboard.open, false);
+});
+
+await t('an interim student fragment does not release a floor the agent holds', async () => {
+  // The quiz-window bug: the student branch used to call onHumanSpeechStart
+  // on EVERY relay, interim ones included, so Athena's own TTS echoing back
+  // through a student's open mic flipped AGENT_SPEAKING to OPEN_FLOOR before
+  // the finality gate. The end-of-turn releaseFloor then saw the wrong state
+  // and never re-armed the quiz countdown — the answer window stayed
+  // truncated while she was still reading the options aloud.
+  const session = createSession('t');
+  const teacher = addParticipant(session, { displayName: 'Rao', role: 'teacher' });
+  const student = addParticipant(session, { displayName: 'Aarav', role: 'student' });
+
+  await ingestTranscript(session, {
+    uid: teacher.uid,
+    text: 'Athena, quiz the class on fractions.',
+    isFinal: true,
+    turnId: 1,
+  });
+  await handleAgentState(session, 'thinking');
+  assert.equal(session.floor.state, 'AGENT_SPEAKING', 'sanity: she holds the floor');
+
+  // Her voice returning through the student's mic, mid-sentence — interim.
+  await ingestTranscript(session, {
+    uid: student.uid,
+    text: 'which of the following is equiva',
+    isFinal: false,
+    turnId: 2,
+  });
+  assert.equal(
+    session.floor.state,
+    'AGENT_SPEAKING',
+    'an interim fragment must not take a floor she is speaking on',
+  );
+
+  // A student genuinely answering still takes it, on the final segment.
+  await ingestTranscript(session, {
+    uid: student.uid,
+    text: 'Option B, the half.',
+    isFinal: true,
+    turnId: 2,
+  });
+  assert.equal(session.floor.state, 'OPEN_FLOOR', 'the settled answer still holds the floor');
+});
+
+await t('mute revokes the standing permit — veto applies to the NEXT turn too', async () => {
+  // MUTE_AGENT used to interrupt and release the floor but left the permit
+  // granted before the mute standing, so a turn starting after the click —
+  // ConvoAI deciding to answer on its own initiative — still passed the
+  // permission gate. The mute veto is supposed to be absolute.
+  const session = createSession('t');
+  const teacher = addParticipant(session, { displayName: 'Rao', role: 'teacher' });
+
+  await ingestTranscript(session, {
+    uid: teacher.uid,
+    text: 'Athena, can you hear me?',
+    isFinal: true,
+    turnId: 7,
+  });
+  assert.equal(session.speakPermit !== null, true, 'sanity: the address earned a permit');
+
+  await applyTeacherCommand(session, { type: 'MUTE_AGENT' }, teacher.participantId);
+  assert.equal(session.speakPermit, null, 'the mute cleared the permit');
+
+  const result = await handleAgentState(session, 'thinking');
+  assert.equal(result.interrupted, true, 'a turn started after the mute must be cut off');
 });
 
 console.log(`\n${pass} passing`);
