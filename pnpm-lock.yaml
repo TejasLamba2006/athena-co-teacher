@@ -4,6 +4,9 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+patchedDependencies:
+  '@met4citizen/talkinghead@1.7.0': 63618738c787a963a8e7eb4703130ced66b487fd4b38d240bc108884780fae9b
+
 importers:
 
   .:
@@ -95,7 +98,7 @@ importers:
         version: 0.19.16(react@19.2.8)
       '@met4citizen/talkinghead':
         specifier: ^1.7.0
-        version: 1.7.0
+        version: 1.7.0(patch_hash=63618738c787a963a8e7eb4703130ced66b487fd4b38d240bc108884780fae9b)
       '@radix-ui/react-dropdown-menu':
         specifier: ^2.1.4
         version: 2.1.24(@types/react-dom@19.2.5(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
@@ -5779,7 +5782,7 @@ snapshots:
     dependencies:
       '@chevrotain/types': 11.1.2
 
-  '@met4citizen/talkinghead@1.7.0':
+  '@met4citizen/talkinghead@1.7.0(patch_hash=63618738c787a963a8e7eb4703130ced66b487fd4b38d240bc108884780fae9b)':
     dependencies:
       three: 0.180.0
 

@@ -95,6 +95,10 @@ pids/
 # demand, so they are noise in a diff and in the history.
 .omc/
 
+# Playwright MCP scratch: page snapshots and console logs from driving the app
+# in a browser. Regenerated per run.
+.playwright-mcp/
+
 # ─── Editors and OS ──────────────────────────────────────────────────────────
 .DS_Store
 Thumbs.db

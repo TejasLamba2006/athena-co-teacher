@@ -1,0 +1,20 @@
+diff --git a/modules/talkinghead.mjs b/modules/talkinghead.mjs
+index 441ddff6b01d05093a244441f77c60ffead695e8..a60a6c66ac9e20f421d7e9184956cd36799ffe5f 100644
+--- a/modules/talkinghead.mjs
++++ b/modules/talkinghead.mjs
+@@ -2750,7 +2750,14 @@ class TalkingHead {
+     if ( !this.lipsync.hasOwnProperty(lang) ) {
+       const moduleName = path + 'lipsync-' + lang.toLowerCase() + '.mjs';
+       const className = 'Lipsync' + lang.charAt(0).toUpperCase() + lang.slice(1);
+-      import(moduleName).then( module => {
++      // PATCHED: the specifier is built at runtime, and bundlers that resolve
++      // dynamic imports statically (Turbopack) fail the whole build on it —
++      // even when no code path reaches here, which is our case: we construct
++      // TalkingHead with `lipsyncModules: []` and drive visemes from HeadAudio
++      // instead. Going through an indirect import keeps the runtime behaviour
++      // identical while making the specifier opaque to static analysis.
++      const dynamicImport = new Function('s', 'return import(s)');
++      dynamicImport(moduleName).then( module => {
+         this.lipsync[lang] = new module[className];
+       });
+     }
